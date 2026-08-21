@@ -70,6 +70,38 @@ an API or an agent framework — is turning a procedure checklist into
 tolerance-aware, multi-source field comparisons: deciding whether a numeric gap
 between two sources is measurement noise or a lie.
 
+## Prior art (Hour-2 checkpoint)
+
+Three closest existing tools, and how RealityCheck differs:
+
+1. **[WizyVision — Proof of Service](https://wizyvision.com/proof-of-service)**
+   — GPS/timestamp-embedded photos plus GenAI vision that extracts serial
+   numbers or asset tags to confirm the photo matches the right equipment.
+   Closest match on the vision side. **Difference:** single-modality —
+   it verifies the photo is of the right *asset*, not whether the *reported
+   readings* (pressure, temperature) are actually within spec, and there's no
+   spoken claim to cross-check against.
+2. **[OpsPhotoAnalyzer](https://www.opsanalitica.com/solutions/photo-analyzer)**
+   — real-time AI scoring of field photos for compliance/authenticity/fraud.
+   **Difference:** photo-only compliance scoring against a policy, not
+   cross-modal contradiction detection between what a technician *said* and
+   what the evidence *shows*.
+3. **[Workforce Vision](https://www.workforcevisionai.com/)** — GPS
+   geofencing, QR check-in, photo capture, "tamper-resistant evidence
+   scoring." **Difference:** the evidence score there is about presence/location
+   (were you there, on time, with a photo), not measurement correctness — it
+   has no notion of a tolerance band or a numeric spec to verify against.
+
+A related but distinct category is India's mandatory **geotagged-photo**
+requirements for government/NGO fieldwork (e.g. via apps like GPS Map Camera) —
+these solve *"was this photo actually taken at this site, now"* (anti-recycling
+fraud), which is a real and adjacent problem, but orthogonal to RealityCheck's:
+none of these tools ask whether the *content* of a claim (a specific pressure
+or temperature reading) is internally consistent across voice, photo, and a
+tolerance-banded spec. That three-way, tolerance-aware, cross-modal
+contradiction check is what's novel here, not "photo evidence" or "GPS proof"
+by themselves — both of which already exist as commodity features.
+
 ---
 
 ## What's built so far
