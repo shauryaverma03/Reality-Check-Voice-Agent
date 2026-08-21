@@ -6,18 +6,23 @@ import TiltCard from '../components/TiltCard.jsx';
 const STEPS = [
   {
     icon: '🎙️',
-    title: '1. Speak the claim',
+    title: '1. Claim',
     text: 'The technician says what they did, in their own words — task, machine ID, readings. Hindi-English mixing is fine.',
   },
   {
     icon: '📷',
-    title: '2. Upload evidence',
-    text: 'A nameplate/serial photo and a final-condition photo — the two things any technician already has on their phone.',
+    title: '2. Evidence',
+    text: 'Photos (and for some services, documents) the checklist requires — the things any technician already has on their phone.',
+  },
+  {
+    icon: '📖',
+    title: '3. Reference knowledge',
+    text: 'For fields that need it, RealityCheck retrieves a matching passage from indexed manufacturer manuals and spec sheets automatically.',
   },
   {
     icon: '✅',
-    title: '3. Get a real decision',
-    text: 'Voice, photos, and the procedure checklist are cross-checked field by field. No exact match required — tolerance bands, not vibes.',
+    title: '4. Verification',
+    text: 'Claim, evidence, and reference are cross-checked field by field. No exact match required — tolerance bands, not vibes.',
   },
 ];
 
@@ -25,6 +30,14 @@ const DECISIONS = [
   { key: 'verified', icon: '✅', label: 'VERIFIED', desc: 'Everything present, consistent, in range. Comes with an evidence score out of 100.' },
   { key: 'need_more_evidence', icon: '❓', label: 'NEED_MORE_EVIDENCE', desc: 'Something required is missing — RealityCheck asks one targeted follow-up question.' },
   { key: 'conflict', icon: '🚩', label: 'CONFLICT_HUMAN_REVIEW', desc: 'A reading is out of spec, or two sources disagree beyond measurement noise. Escalated, not guessed at.' },
+  { key: 'insufficient_evidence', icon: '📖', label: 'INSUFFICIENT_EVIDENCE', desc: 'A field needed reference backing and none was found in the indexed documents. Never silently passed.' },
+];
+
+const SERVICES = [
+  { taskType: 'ac-service', icon: '❄️', label: 'AC Servicing', blurb: 'Gas pressure and outlet temperature.' },
+  { taskType: 'ro-service', icon: '💧', label: 'RO / Water Purifier', blurb: 'Output water quality (TDS).' },
+  { taskType: 'fridge-service', icon: '🧊', label: 'Refrigerator', blurb: 'Internal cabinet temperature.' },
+  { taskType: 'washer-service', icon: '🌀', label: 'Washing Machine', blurb: 'Drainage, vibration, error codes.' },
 ];
 
 export default function HomePage() {
@@ -164,7 +177,20 @@ export default function HomePage() {
       </section>
 
       <section className="section-block">
-        <h2 className="section-title">Every job ends in one of three decisions</h2>
+        <h2 className="section-title">Four services, one verification loop</h2>
+        <div className="home-service-grid">
+          {SERVICES.map((s) => (
+            <Link key={s.taskType} to={`/technician?service=${s.taskType}`} className="home-service-card">
+              <span className="home-service-icon" aria-hidden="true">{s.icon}</span>
+              <span className="home-service-label">{s.label}</span>
+              <span className="home-service-blurb muted">{s.blurb}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="section-block">
+        <h2 className="section-title">Every job ends in one of four decisions</h2>
         <div className="decision-grid">
           {DECISIONS.map((d) => (
             <TiltCard key={d.key} className={`decision-card decision-${d.key}`} maxTilt={5}>

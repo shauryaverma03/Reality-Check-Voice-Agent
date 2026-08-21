@@ -230,6 +230,25 @@ body {
 .app-header nav {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Below this, "prove it, don't just say it" + 4 nav items no longer fit on
+   one line without pushing real horizontal overflow (confirmed via
+   scrollWidth > clientWidth) — stack instead of forcing a shrink that
+   breaks text into a narrow, unreadable column. */
+@media (max-width: 640px) {
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .brand-sub { display: none; }
+  .app-header nav {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 .app-header nav a {
   color: var(--on-brand);
@@ -1048,10 +1067,9 @@ select {
 
 .steps-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 18px;
 }
-@media (max-width: 760px) { .steps-grid { grid-template-columns: 1fr; } }
 .step-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1079,10 +1097,9 @@ select {
 
 .decision-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
 }
-@media (max-width: 760px) { .decision-grid { grid-template-columns: 1fr; } }
 .decision-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1326,3 +1343,34 @@ select {
   gap: 10px;
 }
 .tour-card-nav { display: flex; gap: 8px; }
+
+/* ---------------------------------------------------------------------- */
+/* Home page — service cards (spec section 16)                             */
+/* ---------------------------------------------------------------------- */
+
+.home-service-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+.home-service-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  text-decoration: none;
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+.home-service-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary);
+}
+.home-service-icon { font-size: 1.7rem; }
+.home-service-label { font-weight: 700; font-size: 1rem; }
+.home-service-blurb { font-size: 0.83rem; }

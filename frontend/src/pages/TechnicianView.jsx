@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import StatusPill from '../components/StatusPill.jsx';
 import FieldBreakdown from '../components/FieldBreakdown.jsx';
@@ -47,8 +48,11 @@ function formatDuration(totalSeconds) {
 }
 
 export default function TechnicianView() {
+  const [searchParams] = useSearchParams();
   const [checklists, setChecklists] = useState([]);
-  const [taskType, setTaskType] = useState('ac-service');
+  // Honors a ?service=ro-service style link (e.g. from the home page's
+  // service cards) as the initial selection; falls back to AC otherwise.
+  const [taskType, setTaskType] = useState(() => searchParams.get('service') || 'ac-service');
   const [unitId, setUnitId] = useState('');
   const [technician, setTechnician] = useState('');
   const [task, setTask] = useState(null);
