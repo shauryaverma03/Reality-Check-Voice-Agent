@@ -4,10 +4,9 @@ node_modules/
 *.log
 .DS_Store
 
-# SQLite data files
-backend/data/*.sqlite
-backend/data/*.sqlite3
-backend/data/*.db
+# Runtime data (SQLite DB + WAL/SHM files, uploaded evidence photos) — created
+# at runtime by backend/src/db/index.js and routes/evidence.js
+backend/data/
 
 # build output
 frontend/dist/
