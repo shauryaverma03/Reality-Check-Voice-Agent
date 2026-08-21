@@ -4,6 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RealityCheck</title>
+    <script>
+      // Blocking, synchronous: sets the theme before first paint so there's
+      // never a flash of the wrong theme. Mirrors theme.js's resolveTheme()
+      // — duplicated here because it must run before any module loads.
+      (function () {
+        try {
+          var stored = JSON.parse(localStorage.getItem('realitycheck:theme') || 'null');
+          var palette = stored && ['blue', 'graphite', 'teal'].indexOf(stored.palette) !== -1 ? stored.palette : 'blue';
+          var mode =
+            stored && (stored.mode === 'light' || stored.mode === 'dark')
+              ? stored.mode
+              : window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          document.documentElement.setAttribute('data-theme', mode);
+          document.documentElement.setAttribute('data-palette', palette);
+        } catch (e) {
+          /* localStorage/matchMedia unavailable — default light/blue CSS applies */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

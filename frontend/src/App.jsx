@@ -5,10 +5,14 @@ import TechnicianView from './pages/TechnicianView.jsx';
 import SupervisorDashboard from './pages/SupervisorDashboard.jsx';
 import TaskDetail from './pages/TaskDetail.jsx';
 import KnowledgePage from './pages/KnowledgePage.jsx';
+import ThemeSwitcher from './components/ThemeSwitcher.jsx';
 
 export default function App() {
   return (
     <div className="app">
+      {/* Painted by theme.js during a theme/palette switch; invisible otherwise. */}
+      <div id="theme-transition-overlay" className="theme-transition-overlay" aria-hidden="true" />
+
       <header className="app-header">
         <NavLink to="/" className="brand" end>
           RealityCheck <span className="brand-sub">prove it, don't just say it</span>
@@ -23,6 +27,7 @@ export default function App() {
           <NavLink to="/guide" className={({ isActive }) => (isActive ? 'active' : '')}>
             Guide
           </NavLink>
+          <ThemeSwitcher />
         </nav>
       </header>
       <main className="app-main">
