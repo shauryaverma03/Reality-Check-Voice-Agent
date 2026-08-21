@@ -16,7 +16,14 @@ correctly. RealityCheck closes that gap.
 
 > ⚠️ **Status: work in progress.** This README reflects what's actually built
 > right now, updated as each piece lands. See [What's built so far](#whats-built-so-far)
-> and [Roadmap](#roadmap--build-order) below — don't assume the API or UI exist yet.
+> and [Roadmap](#roadmap--build-order) below.
+>
+> As of now: **verifier, DB, API, and both frontend views are built and have
+> been run end-to-end** (task creation → claim → photo evidence → verify →
+> supervisor dashboard → task detail with full evidence trail and agent-run
+> log), covering all three decisions (VERIFIED, NEED_MORE_EVIDENCE,
+> CONFLICT_HUMAN_REVIEW). What's left is real STT wiring polish and the final
+> failure-log writeup — see the roadmap.
 
 ---
 
@@ -75,36 +82,64 @@ between two sources is measurement noise or a lie.
   **20/20 passing**.
 - ✅ **The default checklist** ([backend/src/checklists.js](backend/src/checklists.js))
   for `task_type: "ac-service"`.
-- ⬜ Database schema + seed script
-- ⬜ API routes (`/tasks`, `/tasks/:id/claim`, `/tasks/:id/evidence`, `/tasks/:id/verify`, `/tasks/:id/report`)
-- ⬜ Extraction layer (voice claim → structured fields, photo → structured fields)
-- ⬜ Frontend — Technician view
-- ⬜ Frontend — Supervisor dashboard
+- ✅ **Database** — SQLite via `better-sqlite3` ([backend/src/db](backend/src/db)),
+  schema for all six tables, auto-seeded `ac-service` checklist.
+- ✅ **API routes** ([backend/src/routes/tasks.js](backend/src/routes/tasks.js))
+  — all seven endpoints, wired to the verifier, DB, and extraction layer, with
+  every step logged to `agent_runs`.
+- ✅ **Extraction layer** ([backend/src/extraction/extract.js](backend/src/extraction/extract.js))
+  — Claude API when `ANTHROPIC_API_KEY` is set, heuristic/regex fallback
+  otherwise. Verified live: an invalid key correctly degrades to the fallback
+  path instead of crashing the pipeline.
+- ✅ **Frontend — Technician view** ([frontend/src/pages/TechnicianView.jsx](frontend/src/pages/TechnicianView.jsx))
+  — mic input (Web Speech API) with textarea fallback, photo upload, live
+  chat-style follow-up thread, final status card. Run end-to-end in-browser
+  for all three decisions.
+- ✅ **Frontend — Supervisor dashboard** ([frontend/src/pages/SupervisorDashboard.jsx](frontend/src/pages/SupervisorDashboard.jsx),
+  [TaskDetail.jsx](frontend/src/pages/TaskDetail.jsx)) — task queue with status
+  pills and evidence scores, per-task evidence trail, per-field breakdown, and
+  a collapsible agent-run log (literally the `agent_runs` table — the thing to
+  show a judge who points at a file).
+- ⬜ Real STT polish, deploy, final failure-log writeup — see [Roadmap](#roadmap--build-order).
 
-## Run it locally (what works today)
+## Run it locally
 
-You need [Node.js](https://nodejs.org) 18+ (tested on Node 25). No API key, no
-database, no install step needed yet — the verifier and its eval harness have
-zero dependencies.
+You need [Node.js](https://nodejs.org) 18+ (tested on Node 25) and npm.
+
+### 1. Backend
 
 ```bash
 cd backend
-npm run eval
+npm install
+cp .env.example .env   # optional: add your ANTHROPIC_API_KEY, else it runs on the heuristic fallback
+npm run eval            # sanity check — should print 20/20 passed
+npm run dev              # starts the API on http://localhost:3001
 ```
 
-You should see all 20 cases pass:
+The SQLite file and any uploaded photos are created under `backend/data/`
+(gitignored) on first run — no manual setup needed. `npm run seed` re-seeds
+the checklist by hand if you edit [checklists.js](backend/src/checklists.js).
 
+### 2. Frontend
+
+In a second terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev   # starts the UI on http://localhost:5173
 ```
-RealityCheck verifier eval — 20 cases
 
-  PASS 01  all fields present, consistent, in range -> VERIFIED, score 100  [VERIFIED, score 100]
-  ...
-20/20 passed (100%)
-```
+Open **http://localhost:5173/technician** to run the demo scenario (start a
+job → speak or type a claim → upload two evidence photos → Run Verification),
+or **http://localhost:5173/supervisor** to see the task queue and drill into
+a task's full evidence trail.
 
-Once the API and frontend exist, this section will grow to cover
-`npm install`, environment variables (`ANTHROPIC_API_KEY`, optional), seeding
-the SQLite DB, and running both servers.
+> Without `ANTHROPIC_API_KEY` set, voice claims are parsed by the heuristic
+> regex fallback (still handles the demo phrase correctly) and photo uploads
+> are presence-only (no OCR) — the whole loop still runs end-to-end and every
+> decision path (VERIFIED / NEED_MORE_EVIDENCE / CONFLICT_HUMAN_REVIEW) works;
+> you just won't get cross-checked values *from* the photos without a real key.
 
 ---
 
@@ -148,14 +183,34 @@ Reality Check Voice Agent/
 ├── README.md
 ├── backend/
 │   ├── package.json
+│   ├── .env.example
 │   └── src/
 │       ├── verifier.js          # core decision logic
 │       ├── verifier.eval.js     # hand-written eval harness (run with `npm run eval`)
 │       ├── checklists.js        # ac-service checklist + tolerance ranges
-│       ├── db/                  # (schema + seed script — not yet built)
-│       ├── routes/              # (API routes — not yet built)
-│       └── extraction/          # (voice/photo -> structured fields — not yet built)
-└── frontend/                    # (React + Vite — not yet built)
+│       ├── server.js            # Express app entrypoint
+│       ├── db/
+│       │   ├── schema.js        # CREATE TABLE statements
+│       │   ├── index.js         # opens/creates/seeds the SQLite DB
+│       │   └── seed.js          # idempotent checklist seeder
+│       ├── routes/
+│       │   └── tasks.js         # all 7 API endpoints
+│       └── extraction/
+│           └── extract.js       # voice/photo -> structured fields (Claude or heuristic)
+└── frontend/
+    ├── package.json
+    ├── .env.example
+    └── src/
+        ├── App.jsx               # routes
+        ├── api.js                # fetch wrapper
+        ├── styles.css
+        ├── pages/
+        │   ├── TechnicianView.jsx
+        │   ├── SupervisorDashboard.jsx
+        │   └── TaskDetail.jsx
+        └── components/
+            ├── StatusPill.jsx
+            └── FieldBreakdown.jsx
 ```
 
 ## Tech stack
@@ -172,26 +227,40 @@ Reality Check Voice Agent/
 
 ## Roadmap / build order
 
-1. ✅ Verifier + eval harness (get this fully passing first — done, 20/20)
-2. ⬜ DB schema + seed script for the ac-service checklist
-3. ⬜ API routes wired to the verifier and extraction layer
-4. ⬜ Frontend: Technician view, then Supervisor dashboard, wired to the real API
-5. ⬜ Cut-for-24-hours / still-to-do failure log (below — filled in as we go)
+1. ✅ Verifier + eval harness (done, 20/20)
+2. ✅ DB schema + seed script for the ac-service checklist
+3. ✅ API routes wired to the verifier and extraction layer
+4. ✅ Frontend: Technician view + Supervisor dashboard, wired to the real API
+5. ⬜ Deploy (one URL beats a localhost demo); real-device mic test on a phone
+6. ⬜ Final honest failure-log pass before code freeze (below is the running draft)
 
 ## Cut for 24 hours / still to do
 
-*(This section will be finalized honestly at the end, per the hackathon's
-required failure log. Scope decisions already made per the build spec:)*
+*(Running draft — will be finalized honestly at code freeze, per the
+hackathon's required failure log.)*
 
-- Multi-language beyond Hindi-English code-mixing — not built if it slows
-  things down.
-- Real auth — hardcoded demo users, no login flow.
-- No job queue — verification runs synchronously; fine at hackathon scale.
-- Only one procedure doc / checklist (`ac-service`) is supported — not
-  arbitrary procedure docs.
-- Offline caching is basic try/catch, not a durable local queue.
-- **Not yet built:** DB layer, API, extraction layer, both frontend views —
-  see [Roadmap](#roadmap--build-order) above.
+Deliberately not built, per the build spec's scope discipline:
+- Multi-language beyond Hindi-English code-mixing.
+- Real auth — no login flow; the technician/supervisor split is just two
+  routes, not two accounts.
+- A job queue — verification runs synchronously; fine at hackathon scale, not
+  at 10,000 users (see the pitch prep's "what breaks at scale" answer).
+- Arbitrary procedure docs — only the one seeded `ac-service` checklist is
+  supported; `checklists.js` would need a doc-parsing step to generalize.
+- Durable offline caching — evidence upload/claim submission fail loudly with
+  an error message on a dropped request; there's no local retry queue.
+
+Known rough edges from live testing:
+- Photo extraction only reads real values with a working `ANTHROPIC_API_KEY`;
+  without one it's presence-only, so photo-vs-voice contradictions (e.g. the
+  nameplate reading 28 when voice said 27) can't be demoed on the fallback
+  path — needs a real key in the room.
+- Web Speech API mic input hasn't been tested on a physical phone yet, only
+  desktop Chrome — worth a real-device check before the demo.
+- `npm audit` flags moderate issues in `esbuild` (Vite's dev server) and
+  `react-router` (an SSR/redirect CVE) — both are dev-only / SSR-only concerns
+  that don't apply to this client-side SPA on localhost; left unpatched to
+  avoid a breaking-change upgrade mid-hackathon.
 
 ---
 

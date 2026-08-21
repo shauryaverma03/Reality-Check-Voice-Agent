@@ -12,6 +12,7 @@
     "seed": "node src/db/seed.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
     "better-sqlite3": "^11.3.0",
     "cors": "^2.8.5",
     "express": "^4.19.2",
