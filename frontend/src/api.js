@@ -52,4 +52,15 @@ export const api = {
 
   listChecklists: () => request('/checklists'),
   getChecklist: (taskType) => request(`/checklists/${taskType}`),
+
+  // Reference knowledge base — deliberately separate from task evidence
+  // above. task_type omitted/empty = a "general" doc that applies to every service.
+  uploadKnowledgeDoc: ({ title, taskType, file }) => {
+    const form = new FormData();
+    if (title) form.append('title', title);
+    if (taskType) form.append('task_type', taskType);
+    form.append('file', file);
+    return request('/knowledge', { method: 'POST', body: form });
+  },
+  listKnowledgeDocs: (taskType) => request(`/knowledge${toQuery({ task_type: taskType })}`),
 };

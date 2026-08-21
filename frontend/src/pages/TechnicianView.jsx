@@ -6,26 +6,42 @@ import FieldBreakdown from '../components/FieldBreakdown.jsx';
 const SpeechRecognitionAPI =
   typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
 
-const PHOTO_ROLES = [
-  { key: 'serial_photo', label: 'Serial number / nameplate photo' },
-  { key: 'final_photo', label: 'Final condition photo' },
-];
+// Human-readable label per task_type, for the selector. Falls back to the
+// raw task_type string for anything not listed here, so a new service added
+// purely as backend config still shows up (just less prettily) without a
+// frontend change.
+const TASK_TYPE_LABELS = {
+  'ac-service': 'AC Servicing',
+  'ro-service': 'RO / Water Purifier Servicing',
+  'fridge-service': 'Refrigerator Servicing',
+  'washer-service': 'Washing Machine Servicing',
+};
+
+const DECISION_TO_STATUS = {
+  VERIFIED: 'verified',
+  NEED_MORE_EVIDENCE: 'need_more_evidence',
+  CONFLICT_HUMAN_REVIEW: 'conflict',
+  INSUFFICIENT_EVIDENCE: 'insufficient_evidence',
+};
 
 function nowLabel() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 export default function TechnicianView() {
+  const [checklists, setChecklists] = useState([]);
+  const [taskType, setTaskType] = useState('ac-service');
   const [unitId, setUnitId] = useState('');
   const [technician, setTechnician] = useState('');
   const [task, setTask] = useState(null);
+  const [checklist, setChecklist] = useState(null); // the fields for `task`'s task_type
   const [creating, setCreating] = useState(false);
 
   const [claimText, setClaimText] = useState('');
   const [listening, setListening] = useState(false);
   const [submittingClaim, setSubmittingClaim] = useState(false);
 
-  const [uploaded, setUploaded] = useState({ serial_photo: null, final_photo: null });
+  const [uploaded, setUploaded] = useState({});
   const [uploadingRole, setUploadingRole] = useState(null);
 
   const [verification, setVerification] = useState(null);
@@ -37,6 +53,19 @@ export default function TechnicianView() {
   const threadEndRef = useRef(null);
 
   useEffect(() => {
+    api
+      .listChecklists()
+      .then((rows) => {
+        setChecklists(rows);
+        if (rows.length > 0 && !rows.some((r) => r.task_type === taskType)) {
+          setTaskType(rows[0].task_type);
+        }
+      })
+      .catch(() => setChecklists([])); // selector just falls back to the AC default if this fails
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
@@ -44,15 +73,23 @@ export default function TechnicianView() {
     setMessages((prev) => [...prev, { role, text, at: nowLabel() }]);
   }
 
+  const evidenceFields = checklist ? checklist.filter((f) => f.type === 'photo' || f.type === 'document') : [];
+
   async function handleCreateTask(e) {
     e.preventDefault();
     setError(null);
     setCreating(true);
     try {
-      const created = await api.createTask({ task_type: 'ac-service', unit_id: unitId, technician });
+      const created = await api.createTask({ task_type: taskType, unit_id: unitId, technician });
       setTask(created);
+      setUploaded({});
+      const selected = checklists.find((c) => c.task_type === created.task_type);
+      setChecklist(selected ? selected.fields : null);
       setMessages([]);
-      pushMessage('system', `New job started for unit ${unitId || '(unspecified)'}. Speak or type your claim, then upload both evidence photos.`);
+      pushMessage(
+        'system',
+        `New ${TASK_TYPE_LABELS[created.task_type] || created.task_type} job started for unit ${unitId || '(unspecified)'}. Speak or type your claim, then upload the required evidence.`
+      );
     } catch (err) {
       setError(err.message);
     } finally {
@@ -112,14 +149,14 @@ export default function TechnicianView() {
     }
   }
 
-  async function handleUploadPhoto(role, file) {
+  async function handleUploadEvidence(role, file) {
     if (!task || !file) return;
     setError(null);
     setUploadingRole(role);
     try {
       const evidence = await api.uploadEvidence(task.id, role, file);
       setUploaded((prev) => ({ ...prev, [role]: evidence }));
-      const label = PHOTO_ROLES.find((r) => r.key === role)?.label || role;
+      const label = evidenceFields.find((f) => f.key === role)?.label || role;
       const extractedKeys = Object.keys(evidence.extracted || {});
       pushMessage(
         'system',
@@ -140,20 +177,16 @@ export default function TechnicianView() {
     try {
       const result = await api.verify(task.id);
       setVerification(result);
-      setTask((prev) => ({
-        ...prev,
-        status: { VERIFIED: 'verified', NEED_MORE_EVIDENCE: 'need_more_evidence', CONFLICT_HUMAN_REVIEW: 'conflict' }[result.decision],
-      }));
+      setTask((prev) => ({ ...prev, status: DECISION_TO_STATUS[result.decision] }));
       if (result.decision === 'VERIFIED') {
         pushMessage('system', `✅ VERIFIED — evidence score ${result.evidence_score}/100.`);
       } else if (result.decision === 'NEED_MORE_EVIDENCE') {
         pushMessage('system', `❓ ${result.follow_up_question}`);
+      } else if (result.decision === 'INSUFFICIENT_EVIDENCE') {
+        pushMessage('system', `📖 INSUFFICIENT EVIDENCE — ${result.follow_up_question}`);
       } else {
         const bad = result.fields.filter((f) => f.status === 'contradiction' || f.status === 'out_of_range');
-        pushMessage(
-          'system',
-          `🚩 CONFLICT — needs human review. ${bad.map((f) => f.message).join(' ')}`
-        );
+        pushMessage('system', `🚩 CONFLICT — needs human review. ${bad.map((f) => f.message).join(' ')}`);
       }
     } catch (err) {
       setError(err.message);
@@ -167,8 +200,18 @@ export default function TechnicianView() {
     return (
       <div className="card narrow">
         <h1>Start a job</h1>
-        <p className="muted">AC / RO annual maintenance — speak your claim, upload evidence, get verified.</p>
+        <p className="muted">Pick a service, speak your claim, upload evidence, get verified.</p>
         <form onSubmit={handleCreateTask} className="form">
+          <label>
+            Service type
+            <select value={taskType} onChange={(e) => setTaskType(e.target.value)}>
+              {(checklists.length > 0 ? checklists.map((c) => c.task_type) : Object.keys(TASK_TYPE_LABELS)).map((t) => (
+                <option key={t} value={t}>
+                  {TASK_TYPE_LABELS[t] || t}
+                </option>
+              ))}
+            </select>
+          </label>
           <label>
             Unit / machine ID
             <input value={unitId} onChange={(e) => setUnitId(e.target.value)} placeholder="e.g. 27" />
@@ -192,7 +235,10 @@ export default function TechnicianView() {
         <div className="task-header">
           <div>
             <h1>Job — Unit {task.unit_id || '—'}</h1>
-            <p className="muted">Technician: {task.technician || '—'} · Task ID: {task.id.slice(0, 8)}</p>
+            <p className="muted">
+              {TASK_TYPE_LABELS[task.task_type] || task.task_type} · Technician: {task.technician || '—'} · Task ID:{' '}
+              {task.id.slice(0, 8)}
+            </p>
           </div>
           <StatusPill status={task.status} />
         </div>
@@ -222,16 +268,19 @@ export default function TechnicianView() {
         </section>
 
         <section className="section">
-          <h2>2. Upload evidence photos</h2>
+          <h2>2. Upload evidence</h2>
           <div className="photo-grid">
-            {PHOTO_ROLES.map(({ key, label }) => (
+            {evidenceFields.map(({ key, label, type, required }) => (
               <div key={key} className="photo-slot">
-                <label className="photo-label">{label}</label>
+                <label className="photo-label">
+                  {label}
+                  {!required && ' (optional)'}
+                </label>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept={type === 'document' ? 'application/pdf,image/*,.doc,.docx' : 'image/*'}
                   disabled={uploadingRole === key}
-                  onChange={(e) => e.target.files[0] && handleUploadPhoto(key, e.target.files[0])}
+                  onChange={(e) => e.target.files[0] && handleUploadEvidence(key, e.target.files[0])}
                 />
                 {uploadingRole === key && <span className="muted small">Uploading…</span>}
                 {uploaded[key] && uploadingRole !== key && <span className="upload-check">✅ uploaded</span>}
@@ -248,13 +297,29 @@ export default function TechnicianView() {
           {verification && (
             <div className={`status-card status-card-${verification.decision}`}>
               <div className="status-card-heading">
-                <StatusPill status={{ VERIFIED: 'verified', NEED_MORE_EVIDENCE: 'need_more_evidence', CONFLICT_HUMAN_REVIEW: 'conflict' }[verification.decision]} />
+                <StatusPill status={DECISION_TO_STATUS[verification.decision]} />
                 <span className="score">Evidence score: {verification.evidence_score}/100</span>
               </div>
               {verification.follow_up_question && (
-                <p className="follow-up">Follow-up: {verification.follow_up_question}</p>
+                <p className="follow-up">
+                  {verification.decision === 'INSUFFICIENT_EVIDENCE' ? 'Why: ' : 'Follow-up: '}
+                  {verification.follow_up_question}
+                </p>
               )}
               <FieldBreakdown fields={verification.fields} />
+              {verification.citations && verification.citations.length > 0 && (
+                <div className="citations-block">
+                  <h3>Sources used</h3>
+                  <ul>
+                    {verification.citations.map((c, i) => (
+                      <li key={i}>
+                        📖 <strong>{c.document_title}</strong> (chunk {c.chunk_index}, match {Math.round(c.score * 100)}%)
+                        <div className="muted small">“{c.snippet}”</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </section>

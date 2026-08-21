@@ -98,7 +98,7 @@ export const RO_SERVICE_CHECKLIST = [
   },
   {
     key: 'job_card',
-    label: 'Job card / service report (optional)',
+    label: 'Job card / service report',
     type: 'document',
     required: false,
   },
@@ -140,7 +140,7 @@ export const FRIDGE_SERVICE_CHECKLIST = [
   },
   {
     key: 'job_card',
-    label: 'Job card / service report (optional)',
+    label: 'Job card / service report',
     type: 'document',
     required: false,
   },
@@ -179,7 +179,7 @@ export const WASHER_SERVICE_CHECKLIST = [
   },
   {
     key: 'job_card',
-    label: 'Job card / service report (optional)',
+    label: 'Job card / service report',
     type: 'document',
     required: false,
   },
