@@ -3,7 +3,16 @@ import { api } from '../api.js';
 import StatusPill from '../components/StatusPill.jsx';
 import FieldBreakdown from '../components/FieldBreakdown.jsx';
 import StepIndicator from '../components/StepIndicator.jsx';
+import VerificationTrace from '../components/VerificationTrace.jsx';
+import FollowUpCallout from '../components/FollowUpCallout.jsx';
 import { citationLabel, citationEquipment } from '../citations.js';
+
+const DECISION_ICON = {
+  VERIFIED: '✓',
+  NEED_MORE_EVIDENCE: '⚠',
+  CONFLICT_HUMAN_REVIEW: '⚠',
+  INSUFFICIENT_EVIDENCE: '?',
+};
 
 const SpeechRecognitionAPI =
   typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
@@ -48,6 +57,7 @@ export default function TechnicianView() {
 
   const [claimText, setClaimText] = useState('');
   const [claimSubmitted, setClaimSubmitted] = useState(false);
+  const [lastClaimRawText, setLastClaimRawText] = useState('');
   const [listening, setListening] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [submittingClaim, setSubmittingClaim] = useState(false);
@@ -63,6 +73,8 @@ export default function TechnicianView() {
   const recognitionRef = useRef(null);
   const recordingIntervalRef = useRef(null);
   const threadEndRef = useRef(null);
+  const evidenceSectionRef = useRef(null);
+  const claimSectionRef = useRef(null);
 
   useEffect(() => {
     api
@@ -178,6 +190,7 @@ export default function TechnicianView() {
           ? `Got it. Extracted: ${fields} (via ${claim.extraction_source}).`
           : `Heard you, but couldn't extract any structured fields from that — try including the machine ID and readings explicitly.`
       );
+      setLastClaimRawText(claimText.trim());
       setClaimText('');
       setClaimSubmitted(true);
     } catch (err) {
@@ -306,7 +319,7 @@ export default function TechnicianView() {
             <StatusPill status={task.status} />
           </div>
 
-          <section className="section">
+          <section className="section" ref={claimSectionRef}>
             <h2>1. State your claim</h2>
             <p className="muted small">Tell RealityCheck what you did — task, machine ID, and any readings.</p>
             <form onSubmit={handleSubmitClaim} className="claim-form">
@@ -337,7 +350,7 @@ export default function TechnicianView() {
             </form>
           </section>
 
-          <section className="section">
+          <section className="section" ref={evidenceSectionRef}>
             <h2>2. Provide evidence</h2>
             <div className="photo-grid">
               {evidenceFields.map(({ key, label, type, required }) => (
@@ -381,16 +394,33 @@ export default function TechnicianView() {
             </button>
             {verification && (
               <div className={`status-card status-card-${verification.decision}`}>
-                <div className="status-card-heading">
-                  <StatusPill status={DECISION_TO_STATUS[verification.decision]} />
-                  <span className="score">Evidence score: {verification.evidence_score}/100</span>
+                <div className="result-heading">
+                  <span className={`result-icon result-icon-${verification.decision}`} aria-hidden="true">
+                    {DECISION_ICON[verification.decision] || '•'}
+                  </span>
+                  <div>
+                    <div className="result-label">{(DECISION_TO_STATUS[verification.decision] || '').replace(/_/g, ' ').toUpperCase()}</div>
+                    <span className="score">Evidence score: {verification.evidence_score}/100</span>
+                  </div>
                 </div>
-                {verification.follow_up_question && (
+
+                {verification.decision === 'NEED_MORE_EVIDENCE' && verification.follow_up_question && (
+                  <FollowUpCallout
+                    question={verification.follow_up_question}
+                    fields={verification.fields}
+                    onProvideEvidence={() => evidenceSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    onUpdateClaim={() => {
+                      claimSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                  />
+                )}
+                {verification.decision !== 'NEED_MORE_EVIDENCE' && verification.follow_up_question && (
                   <p className="follow-up">
-                    {verification.decision === 'INSUFFICIENT_EVIDENCE' ? 'Why: ' : 'Follow-up: '}
+                    {verification.decision === 'INSUFFICIENT_EVIDENCE' ? 'Why: ' : 'Note: '}
                     {verification.follow_up_question}
                   </p>
                 )}
+
                 <FieldBreakdown fields={verification.fields} />
                 {verification.citations && verification.citations.length > 0 && (
                   <div className="citations-block">
@@ -415,6 +445,13 @@ export default function TechnicianView() {
                     </ul>
                   </div>
                 )}
+
+                <VerificationTrace
+                  claimRawText={lastClaimRawText}
+                  evidenceFields={evidenceFields}
+                  uploaded={uploaded}
+                  verification={verification}
+                />
               </div>
             )}
           </section>

@@ -621,20 +621,47 @@ select {
 .status-conflict { background: var(--danger-soft); color: var(--conflict); }
 .status-insufficient_evidence { background: var(--info-soft); color: var(--insufficient); }
 
+/* ---- Verification result — the visual centerpiece (spec section 7) ---- */
 .status-card {
   margin-top: 16px;
-  padding: 16px;
-  border-radius: var(--radius);
+  padding: 20px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border);
+  border-left-width: 5px;
   background: var(--surface-hover);
+  box-shadow: var(--shadow-sm);
+  animation: resultIn 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.status-card-heading {
+@keyframes resultIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.status-card-VERIFIED { border-left-color: var(--success); }
+.status-card-NEED_MORE_EVIDENCE { border-left-color: var(--warning); }
+.status-card-CONFLICT_HUMAN_REVIEW { border-left-color: var(--danger); }
+.status-card-INSUFFICIENT_EVIDENCE { border-left-color: var(--info); }
+
+.status-card-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.status-card .score { font-weight: 600; }
+
+.result-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.result-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 8px;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 1.4rem;
+  font-weight: 800;
 }
-.status-card .score { font-weight: 600; }
+.result-icon-VERIFIED { background: var(--success-soft); color: var(--ok); }
+.result-icon-NEED_MORE_EVIDENCE { background: var(--warning-soft); color: var(--warn); }
+.result-icon-CONFLICT_HUMAN_REVIEW { background: var(--danger-soft); color: var(--conflict); }
+.result-icon-INSUFFICIENT_EVIDENCE { background: var(--info-soft); color: var(--insufficient); }
+.result-label { font-size: 1.15rem; font-weight: 800; letter-spacing: 0.01em; }
+
 .follow-up {
   background: var(--warning-soft);
   border-left: 3px solid var(--warn);
@@ -642,6 +669,20 @@ select {
   border-radius: 4px;
   margin: 10px 0;
 }
+
+.followup-callout {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 12px 0;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--warning-soft);
+  border: 1px solid var(--warning);
+}
+.followup-callout-icon { font-size: 1.2rem; color: var(--warn); flex-shrink: 0; }
+.followup-callout-title { font-weight: 700; font-size: 0.92rem; margin-bottom: 4px; }
+.followup-callout-question { margin: 0 0 10px; font-size: 0.9rem; }
 
 .table-scroll { overflow-x: auto; }
 
@@ -712,6 +753,49 @@ select {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---- "How RealityCheck decided" trace (spec section 8) ---- */
+.trace {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.trace-title { font-size: 0.85rem; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.trace-step { display: flex; flex-direction: column; gap: 6px; }
+.trace-step-label { font-size: 0.78rem; font-weight: 700; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.03em; }
+.trace-claim {
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--primary);
+  background: var(--surface-hover);
+  font-style: italic;
+  font-size: 0.88rem;
+}
+.trace-arrow { text-align: center; color: var(--text-subtle); font-size: 0.9rem; margin: 4px 0; }
+.trace-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.86rem; }
+.trace-ok { color: var(--ok); }
+.trace-bad { color: var(--conflict); }
+.trace-neutral { color: var(--muted); }
+.trace-final {
+  margin-top: 6px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.trace-final-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; color: var(--muted); }
+.trace-final-badge { font-weight: 800; font-size: 1rem; }
+.trace-final-VERIFIED { background: var(--success-soft); }
+.trace-final-VERIFIED .trace-final-badge { color: var(--ok); }
+.trace-final-NEED_MORE_EVIDENCE { background: var(--warning-soft); }
+.trace-final-NEED_MORE_EVIDENCE .trace-final-badge { color: var(--warn); }
+.trace-final-CONFLICT_HUMAN_REVIEW { background: var(--danger-soft); }
+.trace-final-CONFLICT_HUMAN_REVIEW .trace-final-badge { color: var(--conflict); }
+.trace-final-INSUFFICIENT_EVIDENCE { background: var(--info-soft); }
+.trace-final-INSUFFICIENT_EVIDENCE .trace-final-badge { color: var(--insufficient); }
 
 .thread-card { display: flex; flex-direction: column; max-height: 640px; }
 .thread {
