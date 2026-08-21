@@ -20,6 +20,12 @@
 //   }
 //
 // field.status is one of: 'ok' | 'borderline' | 'missing' | 'contradiction' | 'out_of_range'
+//
+// field.type 'document' behaves exactly like 'photo' here: both are
+// evidence-presence checks satisfied by an evidence item whose `role`
+// matches the field key. 'document' is for technician-submitted paperwork
+// (job card, invoice) — never for reference manuals, which are a separate
+// RAG-retrieved concept layered on top of this verifier, not a field type.
 
 const CONTRADICTION_FRACTION = 0.2; // of tolerance-range width — numeric disagreement beyond this = contradiction
 const BORDERLINE_FRACTION = 0.08; // of tolerance-range width — distance from an edge that counts as "borderline"
@@ -74,6 +80,8 @@ function buildFollowUpQuestion(field) {
   switch (field.type) {
     case 'photo':
       return `Please upload a photo for: ${field.label}.`;
+    case 'document':
+      return `Please attach a document for: ${field.label}.`;
     case 'id':
       return `What is the ${field.label}?`;
     case 'number':
@@ -83,11 +91,13 @@ function buildFollowUpQuestion(field) {
   }
 }
 
-function evaluatePhotoField(field, evidence) {
+/** Shared by 'photo' and 'document' fields: both are satisfied purely by the
+ * presence of an evidence item whose `role` matches the field key. */
+function evaluateEvidencePresenceField(field, evidence) {
   const present = evidence.some((item) => item.role === field.key);
   if (!present) {
     return field.required
-      ? { key: field.key, type: field.type, status: 'missing', sources: [], message: `Missing required evidence photo: ${field.label}` }
+      ? { key: field.key, type: field.type, status: 'missing', sources: [], message: `Missing required evidence ${field.type === 'document' ? 'document' : 'photo'}: ${field.label}` }
       : { key: field.key, type: field.type, status: 'ok', sources: [], message: null };
   }
   return { key: field.key, type: field.type, status: 'ok', sources: [{ origin: field.key, value: true }], message: null };
@@ -187,8 +197,8 @@ function evaluateNumberField(field, sources) {
 }
 
 function evaluateField(field, claim, evidence) {
-  if (field.type === 'photo') {
-    return evaluatePhotoField(field, evidence);
+  if (field.type === 'photo' || field.type === 'document') {
+    return evaluateEvidencePresenceField(field, evidence);
   }
   const sources = collectSources(field, claim, evidence);
   if (field.type === 'number') {
