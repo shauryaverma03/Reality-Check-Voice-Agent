@@ -4,6 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import tasksRouter from './routes/tasks.js';
 import checklistsRouter from './routes/checklists.js';
+import knowledgeRouter from './routes/knowledge.js';
 import './db/index.js'; // side effect: creates + seeds the SQLite schema
 
 const app = express();
@@ -22,6 +23,7 @@ app.get('/health', (req, res) => {
 // GET reads/lists, PATCH updates. See README's "API surface" table.
 app.use('/api/v1/tasks', tasksRouter);
 app.use('/api/v1/checklists', checklistsRouter);
+app.use('/api/v1/knowledge', knowledgeRouter);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);
