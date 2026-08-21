@@ -12,7 +12,8 @@ export default function SupervisorDashboard() {
     setLoading(true);
     setError(null);
     try {
-      setTasks(await api.listTasks());
+      const { data } = await api.listTasks();
+      setTasks(data);
     } catch (err) {
       setError(err.message);
     } finally {
