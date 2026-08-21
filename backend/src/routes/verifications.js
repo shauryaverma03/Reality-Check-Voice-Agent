@@ -15,7 +15,7 @@ import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { db, getChecklistForTaskType } from '../db/index.js';
 import { verifyTaskWithReferences } from '../verifier.js';
-import { retrieve, buildFieldQuery } from '../rag/retrieve.js';
+import { retrieve, buildFieldQuery, detectRangeConflict } from '../rag/retrieve.js';
 import { getTaskOr404, logAgentRun, serializeVerification, STATUS_BY_DECISION } from './helpers.js';
 
 const router = Router({ mergeParams: true });
@@ -31,6 +31,21 @@ function extractedValueForField(field, claim, evidence) {
     }
   }
   return undefined;
+}
+
+/** The clean, technician-facing citation shape — everything the UI needs to render a real citation, nothing internal (no chunk id, no raw candidate list; that detail lives only in the agent_runs retrieval trace). */
+function toCitation(chunk) {
+  return {
+    document_title: chunk.documentTitle,
+    source_type: chunk.sourceType,
+    manufacturer: chunk.manufacturer,
+    model: chunk.model,
+    page: chunk.page,
+    section: chunk.section,
+    url: chunk.sourceUrl,
+    snippet: chunk.text.length > 240 ? `${chunk.text.slice(0, 240)}…` : chunk.text,
+    score: Number(chunk.score.toFixed(3)),
+  };
 }
 
 // GET /api/v1/tasks/:taskId/verifications
@@ -56,23 +71,31 @@ router.post('/', (req, res) => {
   const evidence = evidenceRows.map((e) => ({ role: e.role, data: JSON.parse(e.extracted_json) }));
 
   // RAG retrieval — only for fields the checklist says need reference backing.
+  // Fetches top-3 (not just top-1) so detectRangeConflict can tell "two
+  // different sources genuinely disagree" apart from "these are just two
+  // chunks of the same story" before deciding what to cite.
   const references = {};
   const retrievalLog = [];
   for (const field of checklist) {
     if (!field.needsReference) continue;
     const extractedValue = extractedValueForField(field, claim, evidence);
     const query = buildFieldQuery({ taskType: task.task_type, field, extractedValue, rawText: claim?.raw_text });
-    const [top] = retrieve({ taskType: task.task_type, query, k: 1 });
-    retrievalLog.push({ field_key: field.key, query, found: Boolean(top), top: top || null });
-    if (top) {
-      references[field.key] = {
-        citation: {
-          document_title: top.documentTitle,
-          chunk_index: top.chunkIndex,
-          snippet: top.text.length > 240 ? `${top.text.slice(0, 240)}…` : top.text,
-          score: Number(top.score.toFixed(3)),
-        },
-      };
+    const results = retrieve({ taskType: task.task_type, query, k: 3 });
+    const conflict = detectRangeConflict(results);
+    const top = results[0];
+
+    retrievalLog.push({
+      field_key: field.key,
+      query,
+      found: Boolean(top),
+      conflict: conflict ? { a: toCitation(conflict.a), b: toCitation(conflict.b) } : null,
+      candidates: results.map(toCitation),
+    });
+
+    if (conflict) {
+      references[field.key] = { conflict: { a: toCitation(conflict.a), b: toCitation(conflict.b) } };
+    } else if (top) {
+      references[field.key] = { citation: toCitation(top) };
     }
   }
 

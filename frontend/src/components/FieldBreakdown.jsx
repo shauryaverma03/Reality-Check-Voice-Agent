@@ -1,3 +1,5 @@
+import { citationLabel } from '../citations.js';
+
 const STATUS_LABELS = {
   ok: 'OK',
   borderline: 'Borderline',
@@ -44,8 +46,18 @@ export default function FieldBreakdown({ fields }) {
                 )}
                 {f.citation && (
                   <div className="citation-chip" title={f.citation.snippet}>
-                    📖 {f.citation.document_title}
+                    📖 {citationLabel(f.citation)}
                     {typeof f.citation.score === 'number' ? ` (match ${Math.round(f.citation.score * 100)}%)` : ''}
+                  </div>
+                )}
+                {f.conflictingReferences && (
+                  <div className="citation-chip citation-conflict">
+                    ⚠️ Reference sources disagree:
+                    {f.conflictingReferences.map((ref, i) => (
+                      <div key={i} title={ref.snippet}>
+                        📖 {citationLabel(ref)}
+                      </div>
+                    ))}
                   </div>
                 )}
               </td>

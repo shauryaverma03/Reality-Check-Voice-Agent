@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import StatusPill from '../components/StatusPill.jsx';
 import FieldBreakdown from '../components/FieldBreakdown.jsx';
+import { citationLabel, citationEquipment } from '../citations.js';
 
 const SpeechRecognitionAPI =
   typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
@@ -312,8 +313,18 @@ export default function TechnicianView() {
                   <h3>Sources used</h3>
                   <ul>
                     {verification.citations.map((c, i) => (
-                      <li key={i}>
-                        📖 <strong>{c.document_title}</strong> (chunk {c.chunk_index}, match {Math.round(c.score * 100)}%)
+                      <li key={i} className={c.conflict ? 'citation-conflict' : undefined}>
+                        {c.conflict && <span className="muted small">⚠️ Reference sources disagree — </span>}
+                        📖 <strong>{citationLabel(c)}</strong>
+                        {citationEquipment(c) && <span className="muted small"> · {citationEquipment(c)}</span>}
+                        {typeof c.score === 'number' && <span className="muted small"> · match {Math.round(c.score * 100)}%</span>}
+                        {c.url && (
+                          <div>
+                            <a href={c.url} target="_blank" rel="noreferrer" className="muted small">
+                              {c.url}
+                            </a>
+                          </div>
+                        )}
                         <div className="muted small">“{c.snippet}”</div>
                       </li>
                     ))}

@@ -69,13 +69,26 @@ function cosineSimilarity(a, b) {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+// A chunk from a document whose manufacturer or model is literally named in
+// the query text gets a small deterministic score bonus — this is how "if
+// the task mentions a model and the knowledge base has a matching model,
+// prefer that source" (never universally applying a model-specific spec)
+// is implemented, without needing a dedicated model field on tasks: the
+// signal is whatever the technician's own claim text says.
+const MODEL_MATCH_BONUS = 0.05;
+
+function modelMatchBonus(chunk, queryLower) {
+  const candidates = [chunk.manufacturer, chunk.model].filter(Boolean);
+  return candidates.some((c) => queryLower.includes(c.toLowerCase())) ? MODEL_MATCH_BONUS : 0;
+}
+
 /**
  * Pure ranking function — no DB dependency, so it's directly unit-testable
  * and directly reusable by the eval harness with fixture chunks.
  * @param {string} query
- * @param {{ chunkId, documentId, documentTitle, chunkIndex, text }[]} chunks
+ * @param {{ chunkId, documentId, documentTitle, chunkIndex, text, manufacturer?, model?, sourceType?, sourceUrl?, page?, section? }[]} chunks
  * @param {number} [k]
- * @returns {{ chunkId, documentId, documentTitle, chunkIndex, text, score }[]}
+ * @returns {{ chunkId, documentId, documentTitle, chunkIndex, text, score, manufacturer, model, sourceType, sourceUrl, page, section }[]}
  */
 export function rankChunks(query, chunks, k = 3) {
   if (!chunks.length) return [];
@@ -83,6 +96,7 @@ export function rankChunks(query, chunks, k = 3) {
   const chunkTokenLists = chunks.map((c) => tokenize(c.text));
   const idf = buildIdf(chunkTokenLists);
   const queryVec = tfidfVector(tokenize(query), idf);
+  const queryLower = query.toLowerCase();
 
   return chunks
     .map((chunk, i) => ({
@@ -91,7 +105,13 @@ export function rankChunks(query, chunks, k = 3) {
       documentTitle: chunk.documentTitle,
       chunkIndex: chunk.chunkIndex,
       text: chunk.text,
-      score: cosineSimilarity(queryVec, tfidfVector(chunkTokenLists[i], idf)),
+      manufacturer: chunk.manufacturer ?? null,
+      model: chunk.model ?? null,
+      sourceType: chunk.sourceType ?? 'pdf',
+      sourceUrl: chunk.sourceUrl ?? null,
+      page: chunk.page ?? null,
+      section: chunk.section ?? null,
+      score: cosineSimilarity(queryVec, tfidfVector(chunkTokenLists[i], idf)) + modelMatchBonus(chunk, queryLower),
     }))
     .filter((r) => r.score >= SIMILARITY_THRESHOLD)
     .sort((a, b) => b.score - a.score)
@@ -102,7 +122,8 @@ export function rankChunks(query, chunks, k = 3) {
 export function fetchCandidateChunks(taskType) {
   const rows = db
     .prepare(
-      `SELECT c.id AS chunk_id, c.document_id, c.chunk_index, c.text, d.title AS document_title
+      `SELECT c.id AS chunk_id, c.document_id, c.chunk_index, c.text, c.page, c.section,
+              d.title AS document_title, d.manufacturer, d.model, d.source_type, d.source_url
        FROM knowledge_chunks c
        JOIN knowledge_documents d ON d.id = c.document_id
        WHERE d.task_type = ? OR d.task_type IS NULL`
@@ -114,6 +135,12 @@ export function fetchCandidateChunks(taskType) {
     documentTitle: r.document_title,
     chunkIndex: r.chunk_index,
     text: r.text,
+    manufacturer: r.manufacturer,
+    model: r.model,
+    sourceType: r.source_type,
+    sourceUrl: r.source_url,
+    page: r.page,
+    section: r.section,
   }));
 }
 
@@ -122,6 +149,55 @@ export function fetchCandidateChunks(taskType) {
  */
 export function retrieve({ taskType, query, k = 3 }) {
   return rankChunks(query, fetchCandidateChunks(taskType), k);
+}
+
+// ---------------------------------------------------------------------------
+// Conflicting-reference detection — "never silently merge contradictory
+// specs." Deliberately conservative: only flags a conflict when two DIFFERENT
+// documents each state a confidently-extractable numeric range in the SAME
+// unit, and those ranges don't overlap at all. Anything less certain (no
+// range found, only one source, mismatched/absent units) is not a conflict —
+// silence here just means "cite the top match," never "invent a comparison."
+// ---------------------------------------------------------------------------
+
+const RANGE_PATTERN = /(?:between\s+)?(-?\d+(?:\.\d+)?)\s*(?:-|–|to|and)\s*(-?\d+(?:\.\d+)?)\s*(ppm|bar|psi|°?c\b|°?f\b|celsius|fahrenheit)?/i;
+
+function extractRange(text) {
+  const match = text.match(RANGE_PATTERN);
+  if (!match) return null;
+  const min = Number.parseFloat(match[1]);
+  const max = Number.parseFloat(match[2]);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min >= max) return null;
+  const unit = (match[3] || '').toLowerCase().replace(/[°\s]/g, '');
+  return { min, max, unit };
+}
+
+function rangesConflict(a, b) {
+  if (a.unit && b.unit && a.unit !== b.unit) return false; // different units — not a safe comparison, not a claimed conflict
+  return Math.min(a.max, b.max) - Math.max(a.min, b.min) < 0; // zero overlap = genuine disagreement
+}
+
+/**
+ * @param {ReturnType<typeof rankChunks>} results — top-k results for one field's query
+ * @returns {{ a: object, b: object, rangeA: object, rangeB: object } | null}
+ */
+export function detectRangeConflict(results) {
+  const byDocument = new Map();
+  for (const r of results) {
+    if (!byDocument.has(r.documentId)) byDocument.set(r.documentId, r);
+  }
+  const withRanges = [...byDocument.values()]
+    .map((result) => ({ result, range: extractRange(result.text) }))
+    .filter((x) => x.range);
+
+  for (let i = 0; i < withRanges.length; i++) {
+    for (let j = i + 1; j < withRanges.length; j++) {
+      if (rangesConflict(withRanges[i].range, withRanges[j].range)) {
+        return { a: withRanges[i].result, b: withRanges[j].result, rangeA: withRanges[i].range, rangeB: withRanges[j].range };
+      }
+    }
+  }
+  return null;
 }
 
 /**

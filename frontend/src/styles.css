@@ -286,6 +286,12 @@ select {
 .citations-block h3 { font-size: 0.85rem; margin: 0 0 8px; color: var(--muted); }
 .citations-block ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
 .citations-block li { font-size: 0.85rem; }
+.citation-conflict {
+  background: #fbe6e4;
+  border-left: 3px solid var(--conflict);
+  padding: 8px 10px;
+  border-radius: 4px;
+}
 
 .citation-chip {
   margin-top: 4px;

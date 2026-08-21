@@ -277,10 +277,12 @@ export function verifyTask({ checklist, claim = null, evidence = [] }) {
  * reference to also be "wrong."
  *
  * @param {{ checklist: Array, claim: object|null, evidence: Array,
- *   references: Record<string, { citation: object }> }} input
- *   `references[field.key]` present (with a `citation`) means RAG found a
- *   supporting knowledge-base chunk for that field; absent means it didn't
- *   — never invented, never assumed.
+ *   references: Record<string, { citation: object } | { conflict: { a: object, b: object } }> }} input
+ *   `references[field.key]` present with a `citation` means RAG found a
+ *   supporting knowledge-base chunk for that field; present with a
+ *   `conflict` means two DIFFERENT sources gave materially different
+ *   ranges for it (never silently resolved — both are preserved and shown);
+ *   absent means nothing was found — never invented, never assumed.
  */
 export function verifyTaskWithReferences({ checklist, claim = null, evidence = [], references = {} }) {
   const base = verifyTask({ checklist, claim, evidence });
@@ -291,6 +293,15 @@ export function verifyTaskWithReferences({ checklist, claim = null, evidence = [
     if (field.status !== 'ok' && field.status !== 'borderline') return field;
 
     const reference = references[field.key];
+    if (reference?.conflict) {
+      const { a, b } = reference.conflict;
+      return {
+        ...field,
+        status: 'contradiction',
+        message: `Reference sources disagree on "${checklistField.label}": "${a.document_title}" vs "${b.document_title}" state different ranges — needs human review, not auto-resolved.`,
+        conflictingReferences: [a, b],
+      };
+    }
     if (reference?.citation) {
       return { ...field, citation: reference.citation };
     }
@@ -320,11 +331,19 @@ export function verifyTaskWithReferences({ checklist, claim = null, evidence = [
     decision = 'VERIFIED';
   }
 
+  const citations = fields.flatMap((f) => {
+    if (f.citation) return [{ field_key: f.key, ...f.citation }];
+    if (f.conflictingReferences) {
+      return f.conflictingReferences.map((ref) => ({ field_key: f.key, conflict: true, ...ref }));
+    }
+    return [];
+  });
+
   return {
     decision,
     evidence_score: computeScore(checklist, fields),
     follow_up_question: followUpQuestion,
     fields,
-    citations: fields.filter((f) => f.citation).map((f) => ({ field_key: f.key, ...f.citation })),
+    citations,
   };
 }

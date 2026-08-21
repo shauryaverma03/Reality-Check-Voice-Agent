@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { api, API_BASE_URL } from '../api.js';
 import StatusPill from '../components/StatusPill.jsx';
 import FieldBreakdown from '../components/FieldBreakdown.jsx';
+import { citationLabel, citationEquipment } from '../citations.js';
 
 const TASK_TYPE_LABELS = {
   'ac-service': 'AC Servicing',
@@ -133,9 +134,21 @@ export default function TaskDetail() {
                 <p className="muted small">Retrieved from the supervisor-uploaded knowledge base — never a technician submission.</p>
                 <ul>
                   {verification.citations.map((c, i) => (
-                    <li key={i}>
-                      📖 <strong>{c.document_title}</strong> (chunk {c.chunk_index}, match {Math.round(c.score * 100)}%) — field{' '}
-                      <code>{c.field_key}</code>
+                    <li key={i} className={c.conflict ? 'citation-conflict' : undefined}>
+                      {c.conflict && <span className="muted small">⚠️ disagrees with another source — </span>}
+                      📖 <strong>{citationLabel(c)}</strong> — field <code>{c.field_key}</code>
+                      <div className="muted small">
+                        {c.source_type === 'web' ? 'Web' : 'PDF'}
+                        {citationEquipment(c) ? ` · ${citationEquipment(c)}` : ''}
+                        {typeof c.score === 'number' ? ` · match ${Math.round(c.score * 100)}%` : ''}
+                      </div>
+                      {c.url && (
+                        <div>
+                          <a href={c.url} target="_blank" rel="noreferrer" className="muted small">
+                            {c.url}
+                          </a>
+                        </div>
+                      )}
                       <div className="muted small">“{c.snippet}”</div>
                     </li>
                   ))}
