@@ -140,6 +140,10 @@ export default function TechnicianView() {
     try {
       const result = await api.verify(task.id);
       setVerification(result);
+      setTask((prev) => ({
+        ...prev,
+        status: { VERIFIED: 'verified', NEED_MORE_EVIDENCE: 'need_more_evidence', CONFLICT_HUMAN_REVIEW: 'conflict' }[result.decision],
+      }));
       if (result.decision === 'VERIFIED') {
         pushMessage('system', `✅ VERIFIED — evidence score ${result.evidence_score}/100.`);
       } else if (result.decision === 'NEED_MORE_EVIDENCE') {

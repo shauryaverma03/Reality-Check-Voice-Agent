@@ -1,8 +1,11 @@
-// Thin fetch wrapper — one file to point at a different backend URL later.
+// Thin fetch wrapper over the REST API — one file to point at a different
+// backend URL later. Mirrors the resource structure in
+// backend/src/routes: tasks, and its sub-resources claims/evidence/verifications.
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API = `${API_BASE_URL}/api/v1`;
 
 async function request(path, options = {}) {
-  const res = await fetch(`${API_BASE_URL}${path}`, options);
+  const res = await fetch(`${API}${path}`, options);
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;
     try {
@@ -19,17 +22,34 @@ async function request(path, options = {}) {
 
 const json = (body) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
+function toQuery(params = {}) {
+  const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '');
+  if (entries.length === 0) return '';
+  return `?${new URLSearchParams(entries).toString()}`;
+}
+
 export const api = {
   createTask: (payload) => request('/tasks', json(payload)),
-  listTasks: () => request('/tasks'),
+  listTasks: (params) => request(`/tasks${toQuery(params)}`), // -> { data, pagination }
   getTask: (id) => request(`/tasks/${id}`),
-  submitClaim: (id, rawText) => request(`/tasks/${id}/claim`, json({ raw_text: rawText })),
+  updateTask: (id, payload) => request(`/tasks/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
+
+  submitClaim: (id, rawText) => request(`/tasks/${id}/claims`, json({ raw_text: rawText })),
+  listClaims: (id) => request(`/tasks/${id}/claims`),
+
   uploadEvidence: (id, role, file) => {
     const form = new FormData();
     form.append('role', role);
     form.append('file', file);
     return request(`/tasks/${id}/evidence`, { method: 'POST', body: form });
   },
-  verify: (id) => request(`/tasks/${id}/verify`, { method: 'POST' }),
+  listEvidence: (id) => request(`/tasks/${id}/evidence`),
+
+  verify: (id) => request(`/tasks/${id}/verifications`, { method: 'POST' }),
+  listVerifications: (id) => request(`/tasks/${id}/verifications`),
+
   getReport: (id) => request(`/tasks/${id}/report`),
+
+  listChecklists: () => request('/checklists'),
+  getChecklist: (taskType) => request(`/checklists/${taskType}`),
 };

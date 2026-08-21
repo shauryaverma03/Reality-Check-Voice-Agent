@@ -70,6 +70,38 @@ an API or an agent framework — is turning a procedure checklist into
 tolerance-aware, multi-source field comparisons: deciding whether a numeric gap
 between two sources is measurement noise or a lie.
 
+## Prior art (Hour-2 checkpoint)
+
+Three closest existing tools, and how RealityCheck differs:
+
+1. **[WizyVision — Proof of Service](https://wizyvision.com/proof-of-service)**
+   — GPS/timestamp-embedded photos plus GenAI vision that extracts serial
+   numbers or asset tags to confirm the photo matches the right equipment.
+   Closest match on the vision side. **Difference:** single-modality —
+   it verifies the photo is of the right *asset*, not whether the *reported
+   readings* (pressure, temperature) are actually within spec, and there's no
+   spoken claim to cross-check against.
+2. **[OpsPhotoAnalyzer](https://www.opsanalitica.com/solutions/photo-analyzer)**
+   — real-time AI scoring of field photos for compliance/authenticity/fraud.
+   **Difference:** photo-only compliance scoring against a policy, not
+   cross-modal contradiction detection between what a technician *said* and
+   what the evidence *shows*.
+3. **[Workforce Vision](https://www.workforcevisionai.com/)** — GPS
+   geofencing, QR check-in, photo capture, "tamper-resistant evidence
+   scoring." **Difference:** the evidence score there is about presence/location
+   (were you there, on time, with a photo), not measurement correctness — it
+   has no notion of a tolerance band or a numeric spec to verify against.
+
+A related but distinct category is India's mandatory **geotagged-photo**
+requirements for government/NGO fieldwork (e.g. via apps like GPS Map Camera) —
+these solve *"was this photo actually taken at this site, now"* (anti-recycling
+fraud), which is a real and adjacent problem, but orthogonal to RealityCheck's:
+none of these tools ask whether the *content* of a claim (a specific pressure
+or temperature reading) is internally consistent across voice, photo, and a
+tolerance-banded spec. That three-way, tolerance-aware, cross-modal
+contradiction check is what's novel here, not "photo evidence" or "GPS proof"
+by themselves — both of which already exist as commodity features.
+
 ---
 
 ## What's built so far
@@ -84,13 +116,27 @@ between two sources is measurement noise or a lie.
   for `task_type: "ac-service"`.
 - ✅ **Database** — SQLite via `better-sqlite3` ([backend/src/db](backend/src/db)),
   schema for all six tables, auto-seeded `ac-service` checklist.
-- ✅ **API routes** ([backend/src/routes/tasks.js](backend/src/routes/tasks.js))
-  — all seven endpoints, wired to the verifier, DB, and extraction layer, with
-  every step logged to `agent_runs`.
+- ✅ **RESTful API** ([backend/src/routes](backend/src/routes)) — resource-based,
+  versioned under `/api/v1`: `tasks` as the top-level resource with `claims`,
+  `evidence`, and `verifications` as proper REST sub-resources (POST to a
+  collection creates a new member, e.g. `POST /tasks/:id/verifications`
+  creates a new verification result rather than mutating one in place), plus
+  a first-class `checklists` resource. Supports filtering (`?status=`,
+  `?task_type=`) and pagination (`?limit=`, `?offset=`) on the tasks list. See
+  [API surface](#api-surface) below. Every step is logged to `agent_runs`.
 - ✅ **Extraction layer** ([backend/src/extraction/extract.js](backend/src/extraction/extract.js))
   — Claude API when `ANTHROPIC_API_KEY` is set, heuristic/regex fallback
   otherwise. Verified live: an invalid key correctly degrades to the fallback
   path instead of crashing the pipeline.
+- ✅ **Frontend — Home page** ([frontend/src/pages/HomePage.jsx](frontend/src/pages/HomePage.jsx))
+  — landing page explaining the pitch, the 3-step flow, the three decisions,
+  and the persona, plus a live stats strip pulled from the real API (not
+  hardcoded numbers).
+- ✅ **Frontend — Guide** ([frontend/src/pages/GuidePage.jsx](frontend/src/pages/GuidePage.jsx))
+  — in-app walkthrough for technicians and supervisors, a plain-language
+  explanation of every decision and field status, and the live `ac-service`
+  checklist pulled straight from `GET /api/v1/checklists/ac-service` (so it
+  can never drift out of sync with what the verifier actually enforces).
 - ✅ **Frontend — Technician view** ([frontend/src/pages/TechnicianView.jsx](frontend/src/pages/TechnicianView.jsx))
   — mic input (Web Speech API) with textarea fallback, photo upload, live
   chat-style follow-up thread, final status card. Run end-to-end in-browser
@@ -130,10 +176,11 @@ npm install
 npm run dev   # starts the UI on http://localhost:5173
 ```
 
-Open **http://localhost:5173/technician** to run the demo scenario (start a
-job → speak or type a claim → upload two evidence photos → Run Verification),
-or **http://localhost:5173/supervisor** to see the task queue and drill into
-a task's full evidence trail.
+Open **http://localhost:5173** for the landing page, **/guide** for the
+walkthrough, **/technician** to run the demo scenario (start a job → speak or
+type a claim → upload two evidence photos → Run Verification), or
+**/supervisor** to see the task queue and drill into a task's full evidence
+trail.
 
 > Without `ANTHROPIC_API_KEY` set, voice claims are parsed by the heuristic
 > regex fallback (still handles the demo phrase correctly) and photo uploads
@@ -176,6 +223,34 @@ cd backend && npm run eval
 
 ---
 
+## API surface
+
+REST, versioned under `/api/v1`. `tasks` is the top-level resource; `claims`,
+`evidence`, and `verifications` are its sub-resource collections — POSTing to
+one creates a new member of that collection rather than mutating a single
+field, so nothing is a hidden RPC action. `/report` is the one deliberate
+exception: a read-only aggregate view for the dashboard, documented as such
+rather than pretending to be a resource.
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/tasks` | Create a task |
+| GET | `/api/v1/tasks?status=&task_type=&limit=&offset=` | List tasks (filterable, paginated) |
+| GET | `/api/v1/tasks/:id` | Get one task |
+| PATCH | `/api/v1/tasks/:id` | Update `unit_id` / `technician` |
+| GET / POST | `/api/v1/tasks/:id/claims` | List / submit voice claims |
+| GET / POST | `/api/v1/tasks/:id/evidence` | List / upload evidence photos |
+| GET / POST | `/api/v1/tasks/:id/verifications` | List past runs / run the verifier fresh |
+| GET | `/api/v1/tasks/:id/report` | Combined task + claim + evidence + verification + agent-run log |
+| GET | `/api/v1/checklists` | List all checklists |
+| GET | `/api/v1/checklists/:taskType` | Get one checklist (e.g. `ac-service`) |
+| GET | `/health` | Liveness + which extraction mode is active (unversioned, standard convention) |
+
+`/uploads/*` serves stored evidence photos as static files (also unversioned
+— it's file serving, not a resource endpoint).
+
+---
+
 ## Repo structure
 
 ```
@@ -194,17 +269,24 @@ Reality Check Voice Agent/
 │       │   ├── index.js         # opens/creates/seeds the SQLite DB
 │       │   └── seed.js          # idempotent checklist seeder
 │       ├── routes/
-│       │   └── tasks.js         # all 7 API endpoints
+│       │   ├── helpers.js       # shared task lookup / serializers / agent-run logging
+│       │   ├── tasks.js         # tasks resource + mounts the 3 sub-routers below
+│       │   ├── claims.js        # /tasks/:id/claims
+│       │   ├── evidence.js      # /tasks/:id/evidence
+│       │   ├── verifications.js # /tasks/:id/verifications
+│       │   └── checklists.js    # /checklists resource
 │       └── extraction/
 │           └── extract.js       # voice/photo -> structured fields (Claude or heuristic)
 └── frontend/
     ├── package.json
     ├── .env.example
     └── src/
-        ├── App.jsx               # routes
-        ├── api.js                # fetch wrapper
+        ├── App.jsx               # routes + nav
+        ├── api.js                # fetch wrapper (REST resource client)
         ├── styles.css
         ├── pages/
+        │   ├── HomePage.jsx          # landing page + live stats
+        │   ├── GuidePage.jsx         # in-app walkthrough + live checklist
         │   ├── TechnicianView.jsx
         │   ├── SupervisorDashboard.jsx
         │   └── TaskDetail.jsx
