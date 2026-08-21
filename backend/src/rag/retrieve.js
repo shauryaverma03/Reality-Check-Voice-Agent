@@ -73,9 +73,9 @@ function cosineSimilarity(a, b) {
  * Pure ranking function — no DB dependency, so it's directly unit-testable
  * and directly reusable by the eval harness with fixture chunks.
  * @param {string} query
- * @param {{ chunkId, documentId, documentTitle, text }[]} chunks
+ * @param {{ chunkId, documentId, documentTitle, chunkIndex, text }[]} chunks
  * @param {number} [k]
- * @returns {{ chunkId, documentId, documentTitle, text, score }[]}
+ * @returns {{ chunkId, documentId, documentTitle, chunkIndex, text, score }[]}
  */
 export function rankChunks(query, chunks, k = 3) {
   if (!chunks.length) return [];
@@ -89,6 +89,7 @@ export function rankChunks(query, chunks, k = 3) {
       chunkId: chunk.chunkId,
       documentId: chunk.documentId,
       documentTitle: chunk.documentTitle,
+      chunkIndex: chunk.chunkIndex,
       text: chunk.text,
       score: cosineSimilarity(queryVec, tfidfVector(chunkTokenLists[i], idf)),
     }))
@@ -101,7 +102,7 @@ export function rankChunks(query, chunks, k = 3) {
 export function fetchCandidateChunks(taskType) {
   const rows = db
     .prepare(
-      `SELECT c.id AS chunk_id, c.document_id, c.text, d.title AS document_title
+      `SELECT c.id AS chunk_id, c.document_id, c.chunk_index, c.text, d.title AS document_title
        FROM knowledge_chunks c
        JOIN knowledge_documents d ON d.id = c.document_id
        WHERE d.task_type = ? OR d.task_type IS NULL`
@@ -111,6 +112,7 @@ export function fetchCandidateChunks(taskType) {
     chunkId: r.chunk_id,
     documentId: r.document_id,
     documentTitle: r.document_title,
+    chunkIndex: r.chunk_index,
     text: r.text,
   }));
 }

@@ -35,11 +35,19 @@ export function serializeEvidence(row) {
 }
 
 export function serializeVerification(row) {
-  return row ? { ...row, fields: JSON.parse(row.fields_json) } : null;
+  if (!row) return null;
+  return {
+    ...row,
+    fields: JSON.parse(row.fields_json),
+    // citations_json is NULL on rows written before the RAG phase — treat
+    // that as "no citations" rather than crashing on old data.
+    citations: row.citations_json ? JSON.parse(row.citations_json) : [],
+  };
 }
 
 export const STATUS_BY_DECISION = {
   VERIFIED: 'verified',
   NEED_MORE_EVIDENCE: 'need_more_evidence',
   CONFLICT_HUMAN_REVIEW: 'conflict',
+  INSUFFICIENT_EVIDENCE: 'insufficient_evidence',
 };

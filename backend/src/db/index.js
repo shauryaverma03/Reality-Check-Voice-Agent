@@ -17,6 +17,16 @@ db.pragma('foreign_keys = ON');
 db.exec(SCHEMA_SQL);
 seedChecklists(db); // idempotent — safe on every startup
 
+// Additive column on a table that predates it. CREATE TABLE IF NOT EXISTS in
+// schema.js can't add a column to an already-existing table, so this runs
+// once per fresh DB file and is a silent no-op (SQLite throws "duplicate
+// column name") on every startup after that.
+try {
+  db.exec('ALTER TABLE verification_results ADD COLUMN citations_json TEXT');
+} catch (err) {
+  if (!/duplicate column name/i.test(err.message)) throw err;
+}
+
 export function getChecklistForTaskType(taskType) {
   const row = db.prepare('SELECT fields_json FROM checklists WHERE task_type = ?').get(taskType);
   if (!row) {
