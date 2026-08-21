@@ -5,7 +5,7 @@
 
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
-import { db } from '../db/index.js';
+import { db, getChecklistForTaskType } from '../db/index.js';
 import { extractClaimFromVoice } from '../extraction/extract.js';
 import { getTaskOr404, logAgentRun, serializeClaim } from './helpers.js';
 
@@ -29,7 +29,8 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'raw_text is required' });
   }
 
-  const { data, source } = await extractClaimFromVoice({ rawText: raw_text });
+  const checklist = getChecklistForTaskType(task.task_type);
+  const { data, source } = await extractClaimFromVoice({ rawText: raw_text, checklist });
 
   const id = randomUUID();
   db.prepare(

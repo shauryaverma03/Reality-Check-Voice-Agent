@@ -4,6 +4,20 @@ import { api, API_BASE_URL } from '../api.js';
 import StatusPill from '../components/StatusPill.jsx';
 import FieldBreakdown from '../components/FieldBreakdown.jsx';
 
+const TASK_TYPE_LABELS = {
+  'ac-service': 'AC Servicing',
+  'ro-service': 'RO / Water Purifier Servicing',
+  'fridge-service': 'Refrigerator Servicing',
+  'washer-service': 'Washing Machine Servicing',
+};
+
+const DECISION_TO_STATUS = {
+  VERIFIED: 'verified',
+  NEED_MORE_EVIDENCE: 'need_more_evidence',
+  CONFLICT_HUMAN_REVIEW: 'conflict',
+  INSUFFICIENT_EVIDENCE: 'insufficient_evidence',
+};
+
 export default function TaskDetail() {
   const { id } = useParams();
   const [report, setReport] = useState(null);
@@ -49,7 +63,8 @@ export default function TaskDetail() {
         <div>
           <h1>Job — Unit {task.unit_id || '—'}</h1>
           <p className="muted">
-            Technician: {task.technician || '—'} · Task ID: {task.id} · Created {task.created_at}
+            {TASK_TYPE_LABELS[task.task_type] || task.task_type} · Technician: {task.technician || '—'} · Task ID:{' '}
+            {task.id} · Created {task.created_at}
           </p>
         </div>
         <StatusPill status={task.status} />
@@ -73,12 +88,17 @@ export default function TaskDetail() {
       </section>
 
       <section className="section">
-        <h2>Evidence photos</h2>
+        <h2>Technician evidence</h2>
+        <p className="muted small">Photos and documents submitted by the technician for this job — never treated as automatically trustworthy on their own.</p>
         {evidence.length === 0 && <p className="muted">No evidence uploaded yet.</p>}
         <div className="evidence-grid">
           {evidence.map((e) => (
             <div key={e.id} className="evidence-item">
-              <img src={`${API_BASE_URL}/${e.file_path}`} alt={e.role} />
+              {e.mime_type?.startsWith('image/') ? (
+                <img src={`${API_BASE_URL}/${e.file_path}`} alt={e.role} />
+              ) : (
+                <div className="evidence-doc-icon">📄</div>
+              )}
               <div className="evidence-meta">
                 <strong>{e.role}</strong>
                 <span className="muted small">
@@ -97,17 +117,31 @@ export default function TaskDetail() {
         {verification ? (
           <div className={`status-card status-card-${verification.decision}`}>
             <div className="status-card-heading">
-              <StatusPill
-                status={
-                  { VERIFIED: 'verified', NEED_MORE_EVIDENCE: 'need_more_evidence', CONFLICT_HUMAN_REVIEW: 'conflict' }[
-                    verification.decision
-                  ]
-                }
-              />
+              <StatusPill status={DECISION_TO_STATUS[verification.decision]} />
               <span className="score">Evidence score: {verification.evidence_score}/100</span>
             </div>
-            {verification.follow_up_question && <p className="follow-up">Follow-up: {verification.follow_up_question}</p>}
+            {verification.follow_up_question && (
+              <p className="follow-up">
+                {verification.decision === 'INSUFFICIENT_EVIDENCE' ? 'Why: ' : 'Follow-up: '}
+                {verification.follow_up_question}
+              </p>
+            )}
             <FieldBreakdown fields={verification.fields} />
+            {verification.citations && verification.citations.length > 0 && (
+              <div className="citations-block">
+                <h3>Reference knowledge used</h3>
+                <p className="muted small">Retrieved from the supervisor-uploaded knowledge base — never a technician submission.</p>
+                <ul>
+                  {verification.citations.map((c, i) => (
+                    <li key={i}>
+                      📖 <strong>{c.document_title}</strong> (chunk {c.chunk_index}, match {Math.round(c.score * 100)}%) — field{' '}
+                      <code>{c.field_key}</code>
+                      <div className="muted small">“{c.snippet}”</div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         ) : (
           <p className="muted">Not verified yet.</p>

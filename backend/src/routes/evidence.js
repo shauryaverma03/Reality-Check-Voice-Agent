@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import fs from 'node:fs';
 import multer from 'multer';
-import { db } from '../db/index.js';
+import { db, getChecklistForTaskType } from '../db/index.js';
 import { extractEvidenceFromPhoto } from '../extraction/extract.js';
 import { getTaskOr404, logAgentRun, serializeEvidence } from './helpers.js';
 
@@ -36,7 +36,13 @@ router.post('/', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'file is required' });
 
   const buffer = fs.readFileSync(req.file.path);
-  const { data, source } = await extractEvidenceFromPhoto({ buffer, mimeType: req.file.mimetype, role });
+  // Only image uploads go through the vision call — a non-image upload (e.g.
+  // a PDF job card for a 'document' evidence field) has no OCR path here and
+  // degrades straight to presence-only rather than wasting a failed API call.
+  const checklist = getChecklistForTaskType(task.task_type);
+  const { data, source } = req.file.mimetype.startsWith('image/')
+    ? await extractEvidenceFromPhoto({ buffer, mimeType: req.file.mimetype, role, checklist })
+    : { data: {}, source: 'none' };
 
   const id = randomUUID();
   const relativePath = path.relative(DATA_DIR, req.file.path);

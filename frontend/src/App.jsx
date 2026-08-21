@@ -4,6 +4,7 @@ import GuidePage from './pages/GuidePage.jsx';
 import TechnicianView from './pages/TechnicianView.jsx';
 import SupervisorDashboard from './pages/SupervisorDashboard.jsx';
 import TaskDetail from './pages/TaskDetail.jsx';
+import KnowledgePage from './pages/KnowledgePage.jsx';
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/guide" element={<GuidePage />} />
           <Route path="/technician" element={<TechnicianView />} />
           <Route path="/supervisor" element={<SupervisorDashboard />} />
+          <Route path="/supervisor/knowledge" element={<KnowledgePage />} />
           <Route path="/supervisor/tasks/:id" element={<TaskDetail />} />
         </Routes>
       </main>

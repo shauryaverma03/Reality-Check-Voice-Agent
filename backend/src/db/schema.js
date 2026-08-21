@@ -60,8 +60,30 @@ CREATE TABLE IF NOT EXISTS agent_runs (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Reference knowledge base (manufacturer manuals/SOPs), deliberately separate
+-- from technician evidence (claims/evidence tables above). A document with a
+-- NULL task_type applies to every service type ("general" reference).
+CREATE TABLE IF NOT EXISTS knowledge_documents (
+  id TEXT PRIMARY KEY,
+  task_type TEXT,
+  title TEXT NOT NULL,
+  file_path TEXT,
+  mime_type TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_chunks (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES knowledge_documents(id),
+  chunk_index INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_claims_task ON claims(task_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_task ON evidence(task_id);
 CREATE INDEX IF NOT EXISTS idx_verification_task ON verification_results(task_id);
 CREATE INDEX IF NOT EXISTS idx_agent_runs_task ON agent_runs(task_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_documents_task_type ON knowledge_documents(task_type);
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_document ON knowledge_chunks(document_id);
 `;

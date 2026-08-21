@@ -20,6 +20,17 @@
 //   }
 //
 // field.status is one of: 'ok' | 'borderline' | 'missing' | 'contradiction' | 'out_of_range'
+//
+// field.type 'document' behaves exactly like 'photo' here: both are
+// evidence-presence checks satisfied by an evidence item whose `role`
+// matches the field key. 'document' is for technician-submitted paperwork
+// (job card, invoice) — never for reference manuals, which are a separate
+// RAG-retrieved concept layered on top of this verifier, not a field type.
+//
+// verifyTaskWithReferences() (below) wraps this with a 4th decision,
+// INSUFFICIENT_EVIDENCE, for checklist fields flagged `needsReference: true`
+// that RAG couldn't find any supporting knowledge-base chunk for. It never
+// changes verifyTask's own behavior — see its doc comment.
 
 const CONTRADICTION_FRACTION = 0.2; // of tolerance-range width — numeric disagreement beyond this = contradiction
 const BORDERLINE_FRACTION = 0.08; // of tolerance-range width — distance from an edge that counts as "borderline"
@@ -28,6 +39,7 @@ const SCORE_PENALTY = {
   contradiction: 15,
   out_of_range: 20,
   borderline: 5,
+  insufficient_evidence: 20,
 };
 
 /**
@@ -74,6 +86,8 @@ function buildFollowUpQuestion(field) {
   switch (field.type) {
     case 'photo':
       return `Please upload a photo for: ${field.label}.`;
+    case 'document':
+      return `Please attach a document for: ${field.label}.`;
     case 'id':
       return `What is the ${field.label}?`;
     case 'number':
@@ -83,11 +97,13 @@ function buildFollowUpQuestion(field) {
   }
 }
 
-function evaluatePhotoField(field, evidence) {
+/** Shared by 'photo' and 'document' fields: both are satisfied purely by the
+ * presence of an evidence item whose `role` matches the field key. */
+function evaluateEvidencePresenceField(field, evidence) {
   const present = evidence.some((item) => item.role === field.key);
   if (!present) {
     return field.required
-      ? { key: field.key, type: field.type, status: 'missing', sources: [], message: `Missing required evidence photo: ${field.label}` }
+      ? { key: field.key, type: field.type, status: 'missing', sources: [], message: `Missing required evidence ${field.type === 'document' ? 'document' : 'photo'}: ${field.label}` }
       : { key: field.key, type: field.type, status: 'ok', sources: [], message: null };
   }
   return { key: field.key, type: field.type, status: 'ok', sources: [{ origin: field.key, value: true }], message: null };
@@ -187,8 +203,8 @@ function evaluateNumberField(field, sources) {
 }
 
 function evaluateField(field, claim, evidence) {
-  if (field.type === 'photo') {
-    return evaluatePhotoField(field, evidence);
+  if (field.type === 'photo' || field.type === 'document') {
+    return evaluateEvidencePresenceField(field, evidence);
   }
   const sources = collectSources(field, claim, evidence);
   if (field.type === 'number') {
@@ -199,6 +215,26 @@ function evaluateField(field, claim, evidence) {
 }
 
 /**
+ * % of required fields matched (ok/borderline), minus per-field penalties.
+ * Pulled out of verifyTask so verifyTaskWithReferences can recompute the
+ * score after it revises a field's status, using the exact same formula —
+ * never a separately-invented/fabricated number.
+ */
+function computeScore(checklist, fields) {
+  const requiredFields = checklist.filter((f) => f.required);
+  const matchedRequired = requiredFields.filter((f) => {
+    const result = fields.find((r) => r.key === f.key);
+    return result.status === 'ok' || result.status === 'borderline';
+  });
+
+  let score = requiredFields.length === 0 ? 100 : (matchedRequired.length / requiredFields.length) * 100;
+  for (const f of fields) {
+    if (f.status in SCORE_PENALTY) score -= SCORE_PENALTY[f.status];
+  }
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+/**
  * Run the verifier over one task's claim + evidence against a checklist.
  */
 export function verifyTask({ checklist, claim = null, evidence = [] }) {
@@ -206,7 +242,6 @@ export function verifyTask({ checklist, claim = null, evidence = [] }) {
 
   const badFields = fields.filter((f) => f.status === 'contradiction' || f.status === 'out_of_range');
   const missingFields = fields.filter((f) => f.status === 'missing');
-  const borderlineFields = fields.filter((f) => f.status === 'borderline');
 
   let decision;
   let followUpQuestion = null;
@@ -222,22 +257,74 @@ export function verifyTask({ checklist, claim = null, evidence = [] }) {
     decision = 'VERIFIED';
   }
 
-  const requiredFields = checklist.filter((f) => f.required);
-  const matchedRequired = requiredFields.filter((f) => {
-    const result = fields.find((r) => r.key === f.key);
-    return result.status === 'ok' || result.status === 'borderline';
+  return {
+    decision,
+    evidence_score: computeScore(checklist, fields),
+    follow_up_question: followUpQuestion,
+    fields,
+  };
+}
+
+/**
+ * Wraps verifyTask with RAG-reference backing for fields flagged
+ * `needsReference: true` in the checklist. Does NOT alter verifyTask's own
+ * behavior in any way — every existing caller/test of verifyTask (including
+ * the full 20-case eval suite) is unaffected by this function's existence.
+ *
+ * Only a field that already cleared every other check (status 'ok' or
+ * 'borderline') is eligible to be downgraded here — a field that's already
+ * missing/contradictory/out_of_range explains itself and doesn't need a
+ * reference to also be "wrong."
+ *
+ * @param {{ checklist: Array, claim: object|null, evidence: Array,
+ *   references: Record<string, { citation: object }> }} input
+ *   `references[field.key]` present (with a `citation`) means RAG found a
+ *   supporting knowledge-base chunk for that field; absent means it didn't
+ *   — never invented, never assumed.
+ */
+export function verifyTaskWithReferences({ checklist, claim = null, evidence = [], references = {} }) {
+  const base = verifyTask({ checklist, claim, evidence });
+
+  const fields = base.fields.map((field) => {
+    const checklistField = checklist.find((f) => f.key === field.key);
+    if (!checklistField?.needsReference) return field;
+    if (field.status !== 'ok' && field.status !== 'borderline') return field;
+
+    const reference = references[field.key];
+    if (reference?.citation) {
+      return { ...field, citation: reference.citation };
+    }
+    return {
+      ...field,
+      status: 'insufficient_evidence',
+      message: `No reference documentation found to confirm "${checklistField.label}" is within spec for this equipment — upload the relevant manual or escalate for human review.`,
+    };
   });
 
-  let score = requiredFields.length === 0 ? 100 : (matchedRequired.length / requiredFields.length) * 100;
-  for (const f of fields) {
-    if (f.status in SCORE_PENALTY) score -= SCORE_PENALTY[f.status];
+  const badFields = fields.filter((f) => f.status === 'contradiction' || f.status === 'out_of_range');
+  const insufficientFields = fields.filter((f) => f.status === 'insufficient_evidence');
+  const missingFields = fields.filter((f) => f.status === 'missing');
+
+  let decision;
+  let followUpQuestion = base.follow_up_question;
+
+  // Priority: CONFLICT (unchanged) > INSUFFICIENT_EVIDENCE (new) > NEED_MORE_EVIDENCE (unchanged) > VERIFIED
+  if (badFields.length > 0) {
+    decision = 'CONFLICT_HUMAN_REVIEW';
+  } else if (insufficientFields.length > 0) {
+    decision = 'INSUFFICIENT_EVIDENCE';
+    followUpQuestion = insufficientFields[0].message;
+  } else if (missingFields.length > 0) {
+    decision = 'NEED_MORE_EVIDENCE';
+  } else {
+    decision = 'VERIFIED';
   }
-  score = Math.max(0, Math.min(100, Math.round(score)));
 
   return {
     decision,
-    evidence_score: score,
+    evidence_score: computeScore(checklist, fields),
     follow_up_question: followUpQuestion,
     fields,
+    citations: fields.filter((f) => f.citation).map((f) => ({ field_key: f.key, ...f.citation })),
   };
 }

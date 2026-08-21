@@ -4,6 +4,7 @@ const STATUS_LABELS = {
   missing: 'Missing',
   contradiction: 'Contradiction',
   out_of_range: 'Out of range',
+  insufficient_evidence: 'Insufficient evidence',
 };
 
 export default function FieldBreakdown({ fields }) {
@@ -40,6 +41,12 @@ export default function FieldBreakdown({ fields }) {
                   ))
                 ) : (
                   <span className="muted">—</span>
+                )}
+                {f.citation && (
+                  <div className="citation-chip" title={f.citation.snippet}>
+                    📖 {f.citation.document_title}
+                    {typeof f.citation.score === 'number' ? ` (match ${Math.round(f.citation.score * 100)}%)` : ''}
+                  </div>
                 )}
               </td>
               <td className="field-message">{f.message || '—'}</td>
