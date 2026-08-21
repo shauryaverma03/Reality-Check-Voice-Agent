@@ -4,10 +4,21 @@
 // This is deliberately dependency-free (no test framework) so it's a single
 // file a judge can open and read top to bottom: cases are data, the runner
 // at the bottom just checks decision / score / per-field status / follow-up
-// text against expectations and prints a scored table.
+// text / citation count against expectations and prints a scored table.
+//
+// Cases 1-20 are the original AC-only suite and are untouched (still call
+// verifyTask() directly, never verifyTaskWithReferences()). Cases 21-27
+// cover RO/fridge/washer and the RAG-backed INSUFFICIENT_EVIDENCE path,
+// using fixture `references` objects — never a real PDF, DB, or network
+// call — so the whole file stays offline and deterministic.
 
-import { verifyTask } from './verifier.js';
-import { AC_SERVICE_CHECKLIST } from './checklists.js';
+import { verifyTask, verifyTaskWithReferences } from './verifier.js';
+import {
+  AC_SERVICE_CHECKLIST,
+  RO_SERVICE_CHECKLIST,
+  FRIDGE_SERVICE_CHECKLIST,
+  WASHER_SERVICE_CHECKLIST,
+} from './checklists.js';
 
 const cases = [];
 function testCase(def) {
@@ -254,12 +265,109 @@ testCase({
 });
 
 // ---------------------------------------------------------------------------
+// 21-27. Multi-service checklists + RAG-backed verification
+//
+// These cases exercise verifyTaskWithReferences() (mode: 'withReferences')
+// with hand-built fixture `references` objects — never a real PDF, DB, or
+// network call — so this file stays offline and deterministic. Cases that
+// don't need RAG (24, 25) run through plain verifyTask(), same as 1-20.
+// ---------------------------------------------------------------------------
+
+testCase({
+  name: 'RO: all required fields present + a citation for tds_output -> VERIFIED with 1 citation',
+  checklist: RO_SERVICE_CHECKLIST,
+  mode: 'withReferences',
+  claim: { data: { machine_id: 'RO-9', tds_output: 90, filter_replaced: 'yes, new filter fitted' } },
+  evidence: [{ role: 'serial_photo' }, { role: 'filter_photo' }],
+  references: {
+    tds_output: {
+      citation: { document_title: 'RO Service Manual', chunk_index: 0, snippet: 'Normal output TDS is 50-150 ppm.', score: 0.5 },
+    },
+  },
+  expect: { decision: 'VERIFIED', score: 100, fieldStatuses: { tds_output: 'ok' }, citationCount: 1 },
+});
+
+testCase({
+  name: 'RO: missing filter_photo -> NEED_MORE_EVIDENCE (tds_output already reference-backed, so it does not block first)',
+  checklist: RO_SERVICE_CHECKLIST,
+  mode: 'withReferences',
+  claim: { data: { machine_id: 'RO-9', tds_output: 90, filter_replaced: 'yes' } },
+  evidence: [{ role: 'serial_photo' }],
+  references: {
+    tds_output: { citation: { document_title: 'RO Service Manual', chunk_index: 0, snippet: '...', score: 0.4 } },
+  },
+  expect: {
+    decision: 'NEED_MORE_EVIDENCE',
+    fieldStatuses: { tds_output: 'ok', filter_photo: 'missing' },
+    followUpContains: 'replaced filter photo',
+  },
+});
+
+testCase({
+  name: 'Fridge: internal_temperature 15°C outside the 2-8°C range -> CONFLICT_HUMAN_REVIEW even with a reference available',
+  checklist: FRIDGE_SERVICE_CHECKLIST,
+  mode: 'withReferences',
+  claim: { data: { machine_id: 'F-3', internal_temperature: 15, cooling_verified: 'yes, cooling normally' } },
+  evidence: [{ role: 'serial_photo' }, { role: 'cooling_photo' }],
+  references: {
+    internal_temperature: { citation: { document_title: 'Fridge Manual', chunk_index: 0, snippet: '...', score: 0.6 } },
+  },
+  expect: { decision: 'CONFLICT_HUMAN_REVIEW', fieldStatuses: { internal_temperature: 'out_of_range' } },
+});
+
+testCase({
+  name: 'Washer: all fields present and consistent -> VERIFIED (error_code_photo is a photo field, not document)',
+  checklist: WASHER_SERVICE_CHECKLIST,
+  claim: { data: { machine_id: 'W-2', drainage_check: 'clear, no blockage', vibration_check: 'normal' } },
+  evidence: [{ role: 'serial_photo' }, { role: 'error_code_photo' }],
+  expect: { decision: 'VERIFIED', score: 100, fieldStatuses: { error_code_photo: 'ok' } },
+});
+
+testCase({
+  name: 'Wrong checklist: an AC-shaped claim run against the RO checklist -> missing fields, NEED_MORE_EVIDENCE (never a false VERIFIED)',
+  checklist: RO_SERVICE_CHECKLIST,
+  claim: { data: { machine_id: '5', pressure: 4.2, temperature: 82 } },
+  evidence: [{ role: 'serial_photo' }],
+  expect: {
+    decision: 'NEED_MORE_EVIDENCE',
+    fieldStatuses: { tds_output: 'missing', filter_replaced: 'missing', filter_photo: 'missing' },
+  },
+});
+
+testCase({
+  name: 'Fridge: internal_temperature in range + a citation -> VERIFIED with citation',
+  checklist: FRIDGE_SERVICE_CHECKLIST,
+  mode: 'withReferences',
+  claim: { data: { machine_id: 'F-3', internal_temperature: 5, cooling_verified: 'yes, cooling normally' } },
+  evidence: [{ role: 'serial_photo' }, { role: 'cooling_photo' }],
+  references: {
+    internal_temperature: {
+      citation: { document_title: 'Fridge Manual', chunk_index: 2, snippet: '2-8°C is normal for this unit.', score: 0.55 },
+    },
+  },
+  expect: { decision: 'VERIFIED', score: 100, fieldStatuses: { internal_temperature: 'ok' }, citationCount: 1 },
+});
+
+testCase({
+  name: 'RO: tds_output in range but no knowledge doc available -> INSUFFICIENT_EVIDENCE, zero citations',
+  checklist: RO_SERVICE_CHECKLIST,
+  mode: 'withReferences',
+  claim: { data: { machine_id: 'RO-9', tds_output: 90, filter_replaced: 'yes' } },
+  evidence: [{ role: 'serial_photo' }, { role: 'filter_photo' }],
+  references: {},
+  expect: { decision: 'INSUFFICIENT_EVIDENCE', fieldStatuses: { tds_output: 'insufficient_evidence' }, citationCount: 0 },
+});
+
+// ---------------------------------------------------------------------------
 // Runner
 // ---------------------------------------------------------------------------
 
 function runCase(def) {
   const checklist = def.checklist || AC_SERVICE_CHECKLIST;
-  const result = verifyTask({ checklist, claim: def.claim ?? null, evidence: def.evidence ?? [] });
+  const result =
+    def.mode === 'withReferences'
+      ? verifyTaskWithReferences({ checklist, claim: def.claim ?? null, evidence: def.evidence ?? [], references: def.references ?? {} })
+      : verifyTask({ checklist, claim: def.claim ?? null, evidence: def.evidence ?? [] });
   const failures = [];
 
   if (def.expect.decision && result.decision !== def.expect.decision) {
@@ -285,6 +393,13 @@ function runCase(def) {
     const q = (result.follow_up_question || '').toLowerCase();
     if (!q.includes(def.expect.followUpContains.toLowerCase())) {
       failures.push(`follow_up_question: expected to contain "${def.expect.followUpContains}", got "${result.follow_up_question}"`);
+    }
+  }
+
+  if (def.expect.citationCount !== undefined) {
+    const count = (result.citations || []).length;
+    if (count !== def.expect.citationCount) {
+      failures.push(`citations: expected ${def.expect.citationCount}, got ${count}`);
     }
   }
 
