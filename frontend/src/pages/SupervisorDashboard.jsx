@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 import StatusPill from '../components/StatusPill.jsx';
@@ -9,6 +9,14 @@ const TASK_TYPE_LABELS = {
   'fridge-service': 'Refrigerator Servicing',
   'washer-service': 'Washing Machine Servicing',
 };
+
+const SUMMARY_CARDS = [
+  { key: 'total', label: 'Total Jobs', statuses: null },
+  { key: 'verified', label: 'Verified', statuses: ['verified'], tone: 'ok' },
+  { key: 'need_more_evidence', label: 'Need More Evidence', statuses: ['need_more_evidence'], tone: 'warn' },
+  { key: 'conflict', label: 'Human Review', statuses: ['conflict'], tone: 'conflict' },
+  { key: 'insufficient_evidence', label: 'Insufficient Evidence', statuses: ['insufficient_evidence'], tone: 'insufficient' },
+];
 
 export default function SupervisorDashboard() {
   const [tasks, setTasks] = useState([]);
@@ -42,71 +50,92 @@ export default function SupervisorDashboard() {
       .catch(() => setAvailableTaskTypes([]));
   }, []);
 
+  // Every count here comes directly from the real tasks array — never a
+  // placeholder/invented statistic.
+  const counts = useMemo(() => {
+    const result = { total: tasks.length };
+    for (const card of SUMMARY_CARDS) {
+      if (card.statuses) result[card.key] = tasks.filter((t) => card.statuses.includes(t.status)).length;
+    }
+    return result;
+  }, [tasks]);
+
   return (
-    <div className="card">
-      <div className="task-header">
-        <h1>Supervisor dashboard</h1>
-        <div className="claim-actions">
-          <label className="inline-filter">
-            Service:
-            <select value={taskTypeFilter} onChange={(e) => setTaskTypeFilter(e.target.value)}>
-              <option value="">All services</option>
-              {availableTaskTypes.map((t) => (
-                <option key={t} value={t}>
-                  {TASK_TYPE_LABELS[t] || t}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button className="btn secondary" onClick={() => load(taskTypeFilter)} disabled={loading}>
-            {loading ? 'Refreshing…' : '↻ Refresh'}
-          </button>
-          <Link className="btn secondary" to="/supervisor/knowledge">
-            📖 Knowledge base
-          </Link>
-        </div>
+    <div className="supervisor-page">
+      <div className="summary-card-row">
+        {SUMMARY_CARDS.map((c) => (
+          <div key={c.key} className={`summary-card${c.tone ? ` summary-card-${c.tone}` : ''}`}>
+            <div className="summary-card-value">{counts[c.key] ?? 0}</div>
+            <div className="summary-card-label">{c.label}</div>
+          </div>
+        ))}
       </div>
 
-      {error && <p className="error-text">{error}</p>}
-
-      {!loading && tasks.length === 0 && <p className="muted">No jobs yet — start one from the Technician view.</p>}
-
-      {tasks.length > 0 && (
-        <div className="table-scroll">
-          <table className="task-table">
-            <thead>
-              <tr>
-                <th>Unit</th>
-                <th>Service</th>
-                <th>Technician</th>
-                <th>Status</th>
-                <th>Evidence score</th>
-                <th>Created</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.map((t) => (
-                <tr key={t.id}>
-                  <td>{t.unit_id || '—'}</td>
-                  <td>{TASK_TYPE_LABELS[t.task_type] || t.task_type}</td>
-                  <td>{t.technician || '—'}</td>
-                  <td>
-                    <StatusPill status={t.status} />
-                  </td>
-                  <td>{t.latest_score ?? '—'}</td>
-                  <td className="muted small">{t.created_at}</td>
-                  <td>
-                    <Link className="btn tiny" to={`/supervisor/tasks/${t.id}`}>
-                      View
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="card">
+        <div className="task-header">
+          <h1>Recent jobs</h1>
+          <div className="claim-actions">
+            <label className="inline-filter">
+              Service:
+              <select value={taskTypeFilter} onChange={(e) => setTaskTypeFilter(e.target.value)}>
+                <option value="">All services</option>
+                {availableTaskTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {TASK_TYPE_LABELS[t] || t}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="btn secondary" onClick={() => load(taskTypeFilter)} disabled={loading}>
+              {loading ? 'Refreshing…' : '↻ Refresh'}
+            </button>
+            <Link className="btn secondary" to="/supervisor/knowledge">
+              📖 Knowledge base
+            </Link>
+          </div>
         </div>
-      )}
+
+        {error && <p className="error-text">{error}</p>}
+
+        {!loading && tasks.length === 0 && <p className="muted">No jobs yet — start one from the Technician view.</p>}
+
+        {tasks.length > 0 && (
+          <div className="table-scroll">
+            <table className="task-table">
+              <thead>
+                <tr>
+                  <th>Job</th>
+                  <th>Service</th>
+                  <th>Technician</th>
+                  <th>Status</th>
+                  <th>Score</th>
+                  <th>Date</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {tasks.map((t) => (
+                  <tr key={t.id}>
+                    <td>Unit {t.unit_id || '—'}</td>
+                    <td>{TASK_TYPE_LABELS[t.task_type] || t.task_type}</td>
+                    <td>{t.technician || '—'}</td>
+                    <td>
+                      <StatusPill status={t.status} />
+                    </td>
+                    <td>{t.latest_score ?? '—'}</td>
+                    <td className="muted small">{t.created_at}</td>
+                    <td>
+                      <Link className="btn tiny" to={`/supervisor/tasks/${t.id}`}>
+                        View
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

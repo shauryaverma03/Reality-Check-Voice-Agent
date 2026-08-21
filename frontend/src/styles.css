@@ -1144,3 +1144,120 @@ select {
   padding-top: 20px;
   border-top: 1px solid var(--border);
 }
+
+/* ---------------------------------------------------------------------- */
+/* Supervisor dashboard — summary cards (spec section 10)                  */
+/* ---------------------------------------------------------------------- */
+
+.supervisor-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.summary-card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+}
+
+.summary-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.summary-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+.summary-card-value { font-size: 1.9rem; font-weight: 800; line-height: 1.1; color: var(--text); }
+.summary-card-label { margin-top: 4px; font-size: 0.82rem; color: var(--muted); font-weight: 600; }
+
+.summary-card-ok { border-left-color: var(--success); }
+.summary-card-warn { border-left-color: var(--warning); }
+.summary-card-conflict { border-left-color: var(--danger); }
+.summary-card-insufficient { border-left-color: var(--info); }
+
+.inline-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.inline-filter select { margin: 0; }
+
+/* ---------------------------------------------------------------------- */
+/* Knowledge base page (spec section 12)                                   */
+/* ---------------------------------------------------------------------- */
+
+.knowledge-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.knowledge-summary-card {
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.knowledge-summary-label { font-weight: 700; font-size: 0.88rem; margin-bottom: 6px; }
+.knowledge-summary-counts {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.source-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+.source-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
+.source-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.source-type-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.source-card-title { font-weight: 700; font-size: 0.94rem; line-height: 1.3; }
+.source-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.source-card-link {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+  margin-top: 4px;
+}
+.source-card-link:hover { text-decoration: underline; }

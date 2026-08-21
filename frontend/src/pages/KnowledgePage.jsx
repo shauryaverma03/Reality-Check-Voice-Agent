@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 
@@ -8,6 +8,7 @@ const TASK_TYPE_LABELS = {
   'fridge-service': 'Refrigerator Servicing',
   'washer-service': 'Washing Machine Servicing',
 };
+const SERVICE_ORDER = ['ac-service', 'ro-service', 'fridge-service', 'washer-service'];
 
 // Supervisor-only page: uploads REFERENCE knowledge (manufacturer manuals,
 // SOPs, spec sheets) — deliberately a completely separate flow from the
@@ -61,6 +62,18 @@ export default function KnowledgePage() {
     }
   }
 
+  // Real counts, grouped from the actual documents list — never invented.
+  const perService = useMemo(() => {
+    const groups = {};
+    for (const t of SERVICE_ORDER) groups[t] = { pdf: 0, web: 0 };
+    for (const d of docs) {
+      if (!d.task_type || !groups[d.task_type]) continue;
+      if (d.source_type === 'web') groups[d.task_type].web += 1;
+      else groups[d.task_type].pdf += 1;
+    }
+    return groups;
+  }, [docs]);
+
   return (
     <div className="card">
       <Link className="back-link" to="/supervisor">
@@ -71,6 +84,21 @@ export default function KnowledgePage() {
         Manufacturer manuals, SOPs, and spec sheets — retrieved during verification to back a checklist reading with a
         real citation. This is reference material, not technician evidence: it's never attached to a task.
       </p>
+
+      <section className="section">
+        <h2>Coverage by service</h2>
+        <div className="knowledge-summary-grid">
+          {SERVICE_ORDER.map((t) => (
+            <div key={t} className="knowledge-summary-card">
+              <div className="knowledge-summary-label">{TASK_TYPE_LABELS[t]}</div>
+              <div className="knowledge-summary-counts">
+                <span>{perService[t].pdf} PDF{perService[t].pdf === 1 ? '' : 's'}</span>
+                <span>{perService[t].web} web source{perService[t].web === 1 ? '' : 's'}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section className="section">
         <h2>Upload a reference document</h2>
@@ -107,27 +135,26 @@ export default function KnowledgePage() {
         {loading && <p className="muted">Loading…</p>}
         {!loading && docs.length === 0 && <p className="muted">No reference documents uploaded yet.</p>}
         {docs.length > 0 && (
-          <div className="table-scroll">
-            <table className="task-table">
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Applies to</th>
-                  <th>Chunks</th>
-                  <th>Uploaded</th>
-                </tr>
-              </thead>
-              <tbody>
-                {docs.map((d) => (
-                  <tr key={d.id}>
-                    <td>{d.title}</td>
-                    <td>{d.task_type ? TASK_TYPE_LABELS[d.task_type] || d.task_type : 'General (all services)'}</td>
-                    <td>{d.chunk_count}</td>
-                    <td className="muted small">{d.created_at}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="source-card-grid">
+            {docs.map((d) => (
+              <div key={d.id} className="source-card">
+                <div className="source-card-top">
+                  <span className="source-type-badge">{d.source_type === 'web' ? 'Web' : 'PDF'}</span>
+                  <span className="muted small">{d.chunk_count} chunk{d.chunk_count === 1 ? '' : 's'}</span>
+                </div>
+                <div className="source-card-title">{d.title}</div>
+                <div className="source-card-meta">
+                  <span>{d.task_type ? TASK_TYPE_LABELS[d.task_type] || d.task_type : 'General (all services)'}</span>
+                  {(d.manufacturer || d.model) && <span>{[d.manufacturer, d.model].filter(Boolean).join(' ')}</span>}
+                  <span className="muted small">Added {d.created_at}</span>
+                </div>
+                {d.source_url && (
+                  <a href={d.source_url} target="_blank" rel="noreferrer" className="source-card-link">
+                    Open source ↗
+                  </a>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </section>
