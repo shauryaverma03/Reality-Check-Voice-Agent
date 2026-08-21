@@ -17,15 +17,25 @@ db.pragma('foreign_keys = ON');
 db.exec(SCHEMA_SQL);
 seedChecklists(db); // idempotent — safe on every startup
 
-// Additive column on a table that predates it. CREATE TABLE IF NOT EXISTS in
-// schema.js can't add a column to an already-existing table, so this runs
-// once per fresh DB file and is a silent no-op (SQLite throws "duplicate
-// column name") on every startup after that.
-try {
-  db.exec('ALTER TABLE verification_results ADD COLUMN citations_json TEXT');
-} catch (err) {
-  if (!/duplicate column name/i.test(err.message)) throw err;
+// Additive columns on tables that predate them. CREATE TABLE IF NOT EXISTS in
+// schema.js can't add a column to an already-existing table, so each of
+// these runs once per pre-existing DB file and is a silent no-op (SQLite
+// throws "duplicate column name") on every startup after that.
+function addColumnIfMissing(sql) {
+  try {
+    db.exec(sql);
+  } catch (err) {
+    if (!/duplicate column name/i.test(err.message)) throw err;
+  }
 }
+
+addColumnIfMissing('ALTER TABLE verification_results ADD COLUMN citations_json TEXT');
+addColumnIfMissing('ALTER TABLE knowledge_documents ADD COLUMN manufacturer TEXT');
+addColumnIfMissing('ALTER TABLE knowledge_documents ADD COLUMN model TEXT');
+addColumnIfMissing("ALTER TABLE knowledge_documents ADD COLUMN source_type TEXT NOT NULL DEFAULT 'pdf'");
+addColumnIfMissing('ALTER TABLE knowledge_documents ADD COLUMN source_url TEXT');
+addColumnIfMissing('ALTER TABLE knowledge_chunks ADD COLUMN page INTEGER');
+addColumnIfMissing('ALTER TABLE knowledge_chunks ADD COLUMN section TEXT');
 
 export function getChecklistForTaskType(taskType) {
   const row = db.prepare('SELECT fields_json FROM checklists WHERE task_type = ?').get(taskType);

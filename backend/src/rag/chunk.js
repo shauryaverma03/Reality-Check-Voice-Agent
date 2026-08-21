@@ -25,3 +25,24 @@ export function chunkText(text, { size = DEFAULT_SIZE, overlap = DEFAULT_OVERLAP
   }
   return chunks;
 }
+
+/**
+ * Page-aware chunking for PDF ingestion: chunks each page's text
+ * independently (same sliding-window algorithm as chunkText) so every
+ * resulting chunk can carry the real page number it came from — a chunk
+ * never spans two pages, which is what lets a citation say "page 42"
+ * accurately rather than guessing.
+ *
+ * @param {{ pageNumber: number, text: string }[]} pages
+ * @param {{ size?: number, overlap?: number }} [opts]
+ * @returns {{ text: string, page: number }[]}
+ */
+export function chunkPages(pages, opts) {
+  const result = [];
+  for (const { pageNumber, text } of pages) {
+    for (const chunkedText of chunkText(text, opts)) {
+      result.push({ text: chunkedText, page: pageNumber });
+    }
+  }
+  return result;
+}

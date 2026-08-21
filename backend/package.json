@@ -9,7 +9,8 @@
     "eval": "node src/verifier.eval.js",
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "seed": "node src/db/seed.js"
+    "seed": "node src/db/seed.js",
+    "ingest:knowledge": "node src/rag/ingest.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

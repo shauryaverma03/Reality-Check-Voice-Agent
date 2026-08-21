@@ -63,20 +63,31 @@ CREATE TABLE IF NOT EXISTS agent_runs (
 -- Reference knowledge base (manufacturer manuals/SOPs), deliberately separate
 -- from technician evidence (claims/evidence tables above). A document with a
 -- NULL task_type applies to every service type ("general" reference).
+-- manufacturer/model are populated only when confidently detectable (e.g.
+-- from the source filename) — never guessed. source_type is 'pdf' or 'web';
+-- source_url is set for 'web' documents, file_path for 'pdf' ones.
 CREATE TABLE IF NOT EXISTS knowledge_documents (
   id TEXT PRIMARY KEY,
   task_type TEXT,
   title TEXT NOT NULL,
   file_path TEXT,
   mime_type TEXT,
+  manufacturer TEXT,
+  model TEXT,
+  source_type TEXT NOT NULL DEFAULT 'pdf',
+  source_url TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- page/section are set for PDF chunks when known; NULL for non-paged
+-- sources (web/txt) or where no heading was confidently detected.
 CREATE TABLE IF NOT EXISTS knowledge_chunks (
   id TEXT PRIMARY KEY,
   document_id TEXT NOT NULL REFERENCES knowledge_documents(id),
   chunk_index INTEGER NOT NULL,
   text TEXT NOT NULL,
+  page INTEGER,
+  section TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
