@@ -8,19 +8,23 @@
 //        filename when confidently detectable — never guessed)
 //     -> SQLite (knowledge_documents / knowledge_chunks)
 //
-// Deterministic and idempotent: re-running it re-indexes every file fresh
-// (delete-then-reinsert keyed on file_path), so editing a PDF in place and
-// re-running never leaves stale or duplicate chunks behind.
+// Deterministic and idempotent: re-running it re-indexes every file/source
+// fresh (delete-then-reinsert keyed on file_path or source_url), so editing
+// a PDF in place, or a web source's content changing, never leaves stale or
+// duplicate chunks behind.
 //
-// Web-source ingestion (rag/ingestWeb.js) is invoked from here too, once
-// that module exists — see the "web" section below.
+// Then does the same for the curated web sources in rag/ingestWeb.js —
+// fetched live over HTTP, converted HTML -> text -> heading-based sections
+// (rag/html.js), chunked, and indexed exactly like the PDFs above.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { db } from '../db/index.js';
 import { extractPages } from './pdf.js';
-import { chunkPages } from './chunk.js';
+import { chunkPages, chunkText } from './chunk.js';
+import { htmlToSections, extractHtmlTitle } from './html.js';
+import { WEB_SOURCES, fetchWebSource } from './ingestWeb.js';
 
 const KNOWLEDGE_ROOT = path.join(process.cwd(), 'knowledge'); // backend/knowledge
 
@@ -77,18 +81,24 @@ function humanizeTitle(filename, manufacturer, model) {
     .replace(/\bRo\b/g, 'RO');
 }
 
-/** Delete any existing document at this file_path, then insert fresh — makes re-running the ingest command safe (no duplicate/stale chunks). */
-function upsertDocument({ taskType, title, filePath, mimeType, manufacturer, model, sourceType }) {
-  const existing = db.prepare('SELECT id FROM knowledge_documents WHERE file_path = ?').get(filePath);
+/**
+ * Delete any existing document at this natural key (file_path for PDFs,
+ * source_url for web pages), then insert fresh — makes re-running the
+ * ingest command safe (no duplicate/stale chunks) for either source type.
+ */
+function upsertDocument({ taskType, title, filePath = null, sourceUrl = null, mimeType, manufacturer, model, sourceType }) {
+  const existing = filePath
+    ? db.prepare('SELECT id FROM knowledge_documents WHERE file_path = ?').get(filePath)
+    : db.prepare('SELECT id FROM knowledge_documents WHERE source_url = ?').get(sourceUrl);
   if (existing) {
     db.prepare('DELETE FROM knowledge_chunks WHERE document_id = ?').run(existing.id);
     db.prepare('DELETE FROM knowledge_documents WHERE id = ?').run(existing.id);
   }
   const id = randomUUID();
   db.prepare(
-    `INSERT INTO knowledge_documents (id, task_type, title, file_path, mime_type, manufacturer, model, source_type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, taskType, title, filePath, mimeType, manufacturer, model, sourceType);
+    `INSERT INTO knowledge_documents (id, task_type, title, file_path, mime_type, manufacturer, model, source_type, source_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, taskType, title, filePath, mimeType, manufacturer, model, sourceType, sourceUrl);
   return id;
 }
 
@@ -151,23 +161,98 @@ async function ingestPdfsForService(folderName, taskType) {
   return { documents: files.length, chunks: totalChunks };
 }
 
+// ---------------------------------------------------------------------------
+// Web sources
+// ---------------------------------------------------------------------------
+
+async function ingestWebSource(source) {
+  const result = await fetchWebSource(source);
+  if (!result.ok) {
+    console.warn(`  [skip] ${source.url} — ${result.error}`);
+    return { chunks: 0, indexed: false };
+  }
+
+  const sections = htmlToSections(result.html);
+  if (sections.length === 0) {
+    console.warn(`  [skip] ${source.url} — no text could be extracted`);
+    return { chunks: 0, indexed: false };
+  }
+
+  const chunks = [];
+  for (const { section, text } of sections) {
+    for (const chunkedText of chunkText(text)) {
+      chunks.push({ text: chunkedText, page: null, section });
+    }
+  }
+
+  const title = source.title || extractHtmlTitle(result.html) || source.url;
+  const documentId = upsertDocument({
+    taskType: source.taskType,
+    title,
+    sourceUrl: source.url,
+    mimeType: 'text/html',
+    manufacturer: source.publisher || null,
+    model: null,
+    sourceType: 'web',
+  });
+  insertChunks(documentId, chunks);
+
+  console.log(`  ✓ ${title} — ${source.url} — ${chunks.length} chunks`);
+  return { chunks: chunks.length, indexed: true };
+}
+
+async function ingestWebForService(taskType) {
+  const sources = WEB_SOURCES.filter((s) => s.taskType === taskType);
+  let totalChunks = 0;
+  let indexed = 0;
+  for (const source of sources) {
+    const result = await ingestWebSource(source);
+    totalChunks += result.chunks;
+    if (result.indexed) indexed += 1;
+  }
+  return { sources: indexed, chunks: totalChunks };
+}
+
 async function main() {
   console.log('\nRealityCheck knowledge ingestion\n');
   console.log('PDF:');
 
   const pdfTotals = { documents: 0, chunks: 0 };
+  const perService = {};
   for (const [folder, taskType] of Object.entries(SERVICE_FOLDER_TO_TASK_TYPE)) {
     console.log(`${SERVICE_LABELS[taskType]}:`);
     const result = await ingestPdfsForService(folder, taskType);
-    if (result.documents === 0) {
-      console.log('  (no PDFs found)');
-    }
+    if (result.documents === 0) console.log('  (no PDFs found)');
     pdfTotals.documents += result.documents;
     pdfTotals.chunks += result.chunks;
+    perService[taskType] = { pdf: result };
   }
 
-  console.log(`\nKnowledge ingestion complete\n`);
-  console.log(`Total: ${pdfTotals.documents} document(s), ${pdfTotals.chunks} chunk(s)\n`);
+  console.log('\nWEB:');
+  const webTotals = { sources: 0, chunks: 0 };
+  for (const taskType of Object.values(SERVICE_FOLDER_TO_TASK_TYPE)) {
+    const sourceCount = WEB_SOURCES.filter((s) => s.taskType === taskType).length;
+    console.log(`${SERVICE_LABELS[taskType]}:`);
+    if (sourceCount === 0) {
+      console.log('  (no web sources configured)');
+      perService[taskType].web = { sources: 0, chunks: 0 };
+      continue;
+    }
+    const result = await ingestWebForService(taskType);
+    webTotals.sources += result.sources;
+    webTotals.chunks += result.chunks;
+    perService[taskType].web = result;
+  }
+
+  console.log('\nKnowledge ingestion complete\n');
+  for (const [taskType, { pdf, web }] of Object.entries(perService)) {
+    console.log(
+      `${SERVICE_LABELS[taskType]}: ${pdf.documents} PDF doc(s) / ${pdf.chunks} chunks, ${web.sources} web source(s) / ${web.chunks} chunks`
+    );
+  }
+  const totalDocs = pdfTotals.documents + webTotals.sources;
+  const totalChunks = pdfTotals.chunks + webTotals.chunks;
+  console.log(`\nTotal: ${totalDocs} document(s)/source(s), ${totalChunks} chunk(s)\n`);
 }
 
 main().catch((err) => {
