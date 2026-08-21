@@ -2,21 +2,23 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import StatusPill from '../components/StatusPill.jsx';
 import FieldBreakdown from '../components/FieldBreakdown.jsx';
+import StepIndicator from '../components/StepIndicator.jsx';
 import { citationLabel, citationEquipment } from '../citations.js';
 
 const SpeechRecognitionAPI =
   typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
 
-// Human-readable label per task_type, for the selector. Falls back to the
-// raw task_type string for anything not listed here, so a new service added
-// purely as backend config still shows up (just less prettily) without a
-// frontend change.
-const TASK_TYPE_LABELS = {
-  'ac-service': 'AC Servicing',
-  'ro-service': 'RO / Water Purifier Servicing',
-  'fridge-service': 'Refrigerator Servicing',
-  'washer-service': 'Washing Machine Servicing',
+// Human-readable label + icon + one-sentence, backend-accurate description
+// per task_type. Falls back to the raw task_type string for anything not
+// listed here, so a new service added purely as backend config still shows
+// up (just less prettily) without a frontend change.
+const SERVICE_INFO = {
+  'ac-service': { icon: '❄️', label: 'AC Servicing', blurb: 'Checks gas pressure and outlet temperature against manufacturer reference specs.' },
+  'ro-service': { icon: '💧', label: 'RO / Water Purifier', blurb: 'Checks output water quality (TDS) against EPA reference guidance.' },
+  'fridge-service': { icon: '🧊', label: 'Refrigerator', blurb: 'Checks internal cabinet temperature against manufacturer reference guidance.' },
+  'washer-service': { icon: '🌀', label: 'Washing Machine', blurb: 'Checks drainage, vibration, and error-code evidence.' },
 };
+const TASK_TYPE_LABELS = Object.fromEntries(Object.entries(SERVICE_INFO).map(([k, v]) => [k, v.label]));
 
 const DECISION_TO_STATUS = {
   VERIFIED: 'verified',
@@ -29,6 +31,12 @@ function nowLabel() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatDuration(totalSeconds) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 export default function TechnicianView() {
   const [checklists, setChecklists] = useState([]);
   const [taskType, setTaskType] = useState('ac-service');
@@ -39,7 +47,9 @@ export default function TechnicianView() {
   const [creating, setCreating] = useState(false);
 
   const [claimText, setClaimText] = useState('');
+  const [claimSubmitted, setClaimSubmitted] = useState(false);
   const [listening, setListening] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [submittingClaim, setSubmittingClaim] = useState(false);
 
   const [uploaded, setUploaded] = useState({});
@@ -51,6 +61,7 @@ export default function TechnicianView() {
   const [error, setError] = useState(null);
 
   const recognitionRef = useRef(null);
+  const recordingIntervalRef = useRef(null);
   const threadEndRef = useRef(null);
 
   useEffect(() => {
@@ -70,11 +81,27 @@ export default function TechnicianView() {
     threadEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => () => clearInterval(recordingIntervalRef.current), []);
+
   function pushMessage(role, text) {
     setMessages((prev) => [...prev, { role, text, at: nowLabel() }]);
   }
 
   const evidenceFields = checklist ? checklist.filter((f) => f.type === 'photo' || f.type === 'document') : [];
+  const requiredEvidenceFields = evidenceFields.filter((f) => f.required);
+  const allRequiredEvidenceUploaded =
+    requiredEvidenceFields.length > 0 && requiredEvidenceFields.every((f) => uploaded[f.key]);
+
+  // Derived purely from real state — never a simulated/fake progress value.
+  const currentStepIndex = !task
+    ? 0
+    : !claimSubmitted
+      ? 1
+      : verification
+        ? 4
+        : allRequiredEvidenceUploaded
+          ? 3
+          : 2;
 
   async function handleCreateTask(e) {
     e.preventDefault();
@@ -84,6 +111,8 @@ export default function TechnicianView() {
       const created = await api.createTask({ task_type: taskType, unit_id: unitId, technician });
       setTask(created);
       setUploaded({});
+      setClaimSubmitted(false);
+      setVerification(null);
       const selected = checklists.find((c) => c.task_type === created.task_type);
       setChecklist(selected ? selected.fields : null);
       setMessages([]);
@@ -117,11 +146,19 @@ export default function TechnicianView() {
         setClaimText((prev) => (prev ? `${prev} ${finalTranscript}` : finalTranscript).trim());
       }
     };
-    recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
+    recognition.onend = () => {
+      setListening(false);
+      clearInterval(recordingIntervalRef.current);
+    };
+    recognition.onerror = () => {
+      setListening(false);
+      clearInterval(recordingIntervalRef.current);
+    };
     recognitionRef.current = recognition;
     recognition.start();
     setListening(true);
+    setRecordingSeconds(0);
+    recordingIntervalRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
   }
 
   async function handleSubmitClaim(e) {
@@ -142,6 +179,7 @@ export default function TechnicianView() {
           : `Heard you, but couldn't extract any structured fields from that — try including the machine ID and readings explicitly.`
       );
       setClaimText('');
+      setClaimSubmitted(true);
     } catch (err) {
       setError(err.message);
       pushMessage('system', `Couldn't record that claim: ${err.message}`);
@@ -169,6 +207,14 @@ export default function TechnicianView() {
     } finally {
       setUploadingRole(null);
     }
+  }
+
+  function handleRemoveEvidence(role) {
+    setUploaded((prev) => {
+      const next = { ...prev };
+      delete next[role];
+      return next;
+    });
   }
 
   async function handleVerify() {
@@ -199,153 +245,192 @@ export default function TechnicianView() {
 
   if (!task) {
     return (
-      <div className="card narrow">
-        <h1>Start a job</h1>
-        <p className="muted">Pick a service, speak your claim, upload evidence, get verified.</p>
-        <form onSubmit={handleCreateTask} className="form">
-          <label>
-            Service type
-            <select value={taskType} onChange={(e) => setTaskType(e.target.value)}>
-              {(checklists.length > 0 ? checklists.map((c) => c.task_type) : Object.keys(TASK_TYPE_LABELS)).map((t) => (
-                <option key={t} value={t}>
-                  {TASK_TYPE_LABELS[t] || t}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Unit / machine ID
-            <input value={unitId} onChange={(e) => setUnitId(e.target.value)} placeholder="e.g. 27" />
-          </label>
-          <label>
-            Technician name
-            <input value={technician} onChange={(e) => setTechnician(e.target.value)} placeholder="e.g. Rakesh" />
-          </label>
-          {error && <p className="error-text">{error}</p>}
-          <button type="submit" className="btn primary" disabled={creating}>
-            {creating ? 'Starting…' : 'Start Job'}
-          </button>
-        </form>
+      <div className="technician-start">
+        <StepIndicator currentIndex={0} />
+        <div className="card">
+          <h1>Start a job</h1>
+          <p className="muted">Pick a service, speak your claim, upload evidence, get verified.</p>
+
+          <form onSubmit={handleCreateTask} className="form">
+            <div className="service-card-grid" role="radiogroup" aria-label="Service type">
+              {(checklists.length > 0 ? checklists.map((c) => c.task_type) : Object.keys(SERVICE_INFO)).map((t) => {
+                const info = SERVICE_INFO[t] || { icon: '🔧', label: t, blurb: '' };
+                return (
+                  <button
+                    type="button"
+                    key={t}
+                    role="radio"
+                    aria-checked={taskType === t}
+                    className={`service-card${taskType === t ? ' active' : ''}`}
+                    onClick={() => setTaskType(t)}
+                  >
+                    <span className="service-card-icon" aria-hidden="true">{info.icon}</span>
+                    <span className="service-card-label">{info.label}</span>
+                    <span className="service-card-blurb">{info.blurb}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <label>
+              Unit / machine ID
+              <input value={unitId} onChange={(e) => setUnitId(e.target.value)} placeholder="e.g. 27" />
+            </label>
+            <label>
+              Technician name
+              <input value={technician} onChange={(e) => setTechnician(e.target.value)} placeholder="e.g. Rakesh" />
+            </label>
+            {error && <p className="error-text">{error}</p>}
+            <button type="submit" className="btn primary large" disabled={creating}>
+              {creating ? 'Starting…' : 'Start Job'}
+            </button>
+          </form>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="technician-layout">
-      <div className="card">
-        <div className="task-header">
-          <div>
-            <h1>Job — Unit {task.unit_id || '—'}</h1>
-            <p className="muted">
-              {TASK_TYPE_LABELS[task.task_type] || task.task_type} · Technician: {task.technician || '—'} · Task ID:{' '}
-              {task.id.slice(0, 8)}
-            </p>
+    <div className="technician-in-progress">
+      <StepIndicator currentIndex={currentStepIndex} />
+      <div className="technician-layout">
+        <div className="card">
+          <div className="task-header">
+            <div>
+              <h1>Job — Unit {task.unit_id || '—'}</h1>
+              <p className="muted">
+                {SERVICE_INFO[task.task_type]?.icon} {TASK_TYPE_LABELS[task.task_type] || task.task_type} · Technician:{' '}
+                {task.technician || '—'} · Task ID: {task.id.slice(0, 8)}
+              </p>
+            </div>
+            <StatusPill status={task.status} />
           </div>
-          <StatusPill status={task.status} />
+
+          <section className="section">
+            <h2>1. State your claim</h2>
+            <p className="muted small">Tell RealityCheck what you did — task, machine ID, and any readings.</p>
+            <form onSubmit={handleSubmitClaim} className="claim-form">
+              <textarea
+                value={claimText}
+                onChange={(e) => setClaimText(e.target.value)}
+                placeholder={'e.g. "Machine 27 maintenance complete. Pressure is 4.2 bar. Internal temperature is 8 degrees Celsius."'}
+                rows={3}
+                disabled={listening}
+              />
+              <div className="claim-actions">
+                {SpeechRecognitionAPI ? (
+                  <button
+                    type="button"
+                    className={`btn ${listening ? 'danger recording-btn' : 'secondary'}`}
+                    onClick={toggleListening}
+                  >
+                    {listening ? `🔴 Recording… ${formatDuration(recordingSeconds)}` : '🎙 Record claim'}
+                  </button>
+                ) : (
+                  <span className="muted small">Speech recognition not supported in this browser — type your claim.</span>
+                )}
+                <button type="submit" className="btn primary" disabled={submittingClaim || listening || !claimText.trim()}>
+                  {submittingClaim ? 'Analyzing claim…' : 'Submit claim'}
+                </button>
+              </div>
+              <p className="claim-helper muted small">Speak naturally. RealityCheck extracts relevant fields automatically.</p>
+            </form>
+          </section>
+
+          <section className="section">
+            <h2>2. Provide evidence</h2>
+            <div className="photo-grid">
+              {evidenceFields.map(({ key, label, type, required }) => (
+                <div key={key} className={`evidence-card${uploaded[key] ? ' evidence-card-done' : ''}`}>
+                  <div className="evidence-card-top">
+                    <span className="evidence-card-label">{label}</span>
+                    <span className={`evidence-req-badge ${required ? 'required' : 'optional'}`}>
+                      {required ? 'Required' : 'Optional'}
+                    </span>
+                  </div>
+                  {uploaded[key] ? (
+                    <div className="evidence-card-uploaded">
+                      <span className="upload-check">✓ Uploaded</span>
+                      <button type="button" className="btn tiny secondary" onClick={() => handleRemoveEvidence(key)}>
+                        Replace
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="evidence-upload-btn">
+                      {uploadingRole === key ? 'Uploading…' : `Upload ${type === 'document' ? 'file' : 'photo'}`}
+                      <input
+                        type="file"
+                        accept={type === 'document' ? 'application/pdf,image/*,.doc,.docx' : 'image/*'}
+                        disabled={uploadingRole === key}
+                        onChange={(e) => e.target.files[0] && handleUploadEvidence(key, e.target.files[0])}
+                      />
+                    </label>
+                  )}
+                  {!uploaded[key] && required && uploadingRole !== key && (
+                    <span className="evidence-missing-note">⚠ Required evidence missing</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="section">
+            <h2>3. Run verification</h2>
+            <button className="btn primary large" onClick={handleVerify} disabled={verifying}>
+              {verifying ? 'Verifying…' : 'Run Verification'}
+            </button>
+            {verification && (
+              <div className={`status-card status-card-${verification.decision}`}>
+                <div className="status-card-heading">
+                  <StatusPill status={DECISION_TO_STATUS[verification.decision]} />
+                  <span className="score">Evidence score: {verification.evidence_score}/100</span>
+                </div>
+                {verification.follow_up_question && (
+                  <p className="follow-up">
+                    {verification.decision === 'INSUFFICIENT_EVIDENCE' ? 'Why: ' : 'Follow-up: '}
+                    {verification.follow_up_question}
+                  </p>
+                )}
+                <FieldBreakdown fields={verification.fields} />
+                {verification.citations && verification.citations.length > 0 && (
+                  <div className="citations-block">
+                    <h3>Sources used</h3>
+                    <ul>
+                      {verification.citations.map((c, i) => (
+                        <li key={i} className={c.conflict ? 'citation-conflict' : undefined}>
+                          {c.conflict && <span className="muted small">⚠️ Reference sources disagree — </span>}
+                          📖 <strong>{citationLabel(c)}</strong>
+                          {citationEquipment(c) && <span className="muted small"> · {citationEquipment(c)}</span>}
+                          {typeof c.score === 'number' && <span className="muted small"> · match {Math.round(c.score * 100)}%</span>}
+                          {c.url && (
+                            <div>
+                              <a href={c.url} target="_blank" rel="noreferrer" className="muted small">
+                                {c.url}
+                              </a>
+                            </div>
+                          )}
+                          <div className="muted small">“{c.snippet}”</div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
         </div>
 
-        <section className="section">
-          <h2>1. Speak your claim</h2>
-          <form onSubmit={handleSubmitClaim} className="claim-form">
-            <textarea
-              value={claimText}
-              onChange={(e) => setClaimText(e.target.value)}
-              placeholder='e.g. "Machine 27 ka maintenance complete kar diya, pressure 4.2 bar hai, temperature 82 degree hai"'
-              rows={3}
-            />
-            <div className="claim-actions">
-              {SpeechRecognitionAPI ? (
-                <button type="button" className={`btn ${listening ? 'danger' : 'secondary'}`} onClick={toggleListening}>
-                  {listening ? '⏹ Stop recording' : '🎤 Record claim'}
-                </button>
-              ) : (
-                <span className="muted small">Speech recognition not supported in this browser — type your claim.</span>
-              )}
-              <button type="submit" className="btn primary" disabled={submittingClaim || !claimText.trim()}>
-                {submittingClaim ? 'Submitting…' : 'Submit claim'}
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <section className="section">
-          <h2>2. Upload evidence</h2>
-          <div className="photo-grid">
-            {evidenceFields.map(({ key, label, type, required }) => (
-              <div key={key} className="photo-slot">
-                <label className="photo-label">
-                  {label}
-                  {!required && ' (optional)'}
-                </label>
-                <input
-                  type="file"
-                  accept={type === 'document' ? 'application/pdf,image/*,.doc,.docx' : 'image/*'}
-                  disabled={uploadingRole === key}
-                  onChange={(e) => e.target.files[0] && handleUploadEvidence(key, e.target.files[0])}
-                />
-                {uploadingRole === key && <span className="muted small">Uploading…</span>}
-                {uploaded[key] && uploadingRole !== key && <span className="upload-check">✅ uploaded</span>}
+        <div className="card thread-card">
+          <h2>RealityCheck</h2>
+          <div className="thread">
+            {messages.map((m, i) => (
+              <div key={i} className={`bubble bubble-${m.role}`}>
+                <div className="bubble-text">{m.text}</div>
+                <div className="bubble-time">{m.at}</div>
               </div>
             ))}
+            <div ref={threadEndRef} />
           </div>
-        </section>
-
-        <section className="section">
-          <h2>3. Verify</h2>
-          <button className="btn primary large" onClick={handleVerify} disabled={verifying}>
-            {verifying ? 'Verifying…' : 'Run Verification'}
-          </button>
-          {verification && (
-            <div className={`status-card status-card-${verification.decision}`}>
-              <div className="status-card-heading">
-                <StatusPill status={DECISION_TO_STATUS[verification.decision]} />
-                <span className="score">Evidence score: {verification.evidence_score}/100</span>
-              </div>
-              {verification.follow_up_question && (
-                <p className="follow-up">
-                  {verification.decision === 'INSUFFICIENT_EVIDENCE' ? 'Why: ' : 'Follow-up: '}
-                  {verification.follow_up_question}
-                </p>
-              )}
-              <FieldBreakdown fields={verification.fields} />
-              {verification.citations && verification.citations.length > 0 && (
-                <div className="citations-block">
-                  <h3>Sources used</h3>
-                  <ul>
-                    {verification.citations.map((c, i) => (
-                      <li key={i} className={c.conflict ? 'citation-conflict' : undefined}>
-                        {c.conflict && <span className="muted small">⚠️ Reference sources disagree — </span>}
-                        📖 <strong>{citationLabel(c)}</strong>
-                        {citationEquipment(c) && <span className="muted small"> · {citationEquipment(c)}</span>}
-                        {typeof c.score === 'number' && <span className="muted small"> · match {Math.round(c.score * 100)}%</span>}
-                        {c.url && (
-                          <div>
-                            <a href={c.url} target="_blank" rel="noreferrer" className="muted small">
-                              {c.url}
-                            </a>
-                          </div>
-                        )}
-                        <div className="muted small">“{c.snippet}”</div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-      </div>
-
-      <div className="card thread-card">
-        <h2>RealityCheck</h2>
-        <div className="thread">
-          {messages.map((m, i) => (
-            <div key={i} className={`bubble bubble-${m.role}`}>
-              <div className="bubble-text">{m.text}</div>
-              <div className="bubble-time">{m.at}</div>
-            </div>
-          ))}
-          <div ref={threadEndRef} />
         </div>
       </div>
     </div>
