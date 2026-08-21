@@ -21,7 +21,6 @@ import { randomUUID } from 'node:crypto';
 import { db } from '../db/index.js';
 import { extractPages } from './pdf.js';
 import { chunkPages } from './chunk.js';
-import { normalizeText } from './normalize.js';
 
 const KNOWLEDGE_ROOT = path.join(process.cwd(), 'knowledge'); // backend/knowledge
 
@@ -106,14 +105,14 @@ function insertChunks(documentId, chunks) {
 async function ingestPdf(taskType, absPath, relPath) {
   const filename = path.basename(absPath);
   const buffer = fs.readFileSync(absPath);
-  const rawPages = await extractPages(buffer);
-  if (rawPages.length === 0) {
+  const pages = await extractPages(buffer);
+  if (pages.length === 0) {
     console.warn(`  [skip] ${filename} — no text could be extracted`);
     return { chunks: 0 };
   }
 
-  const pages = rawPages.map((p) => ({ pageNumber: p.pageNumber, text: normalizeText(p.text) }));
   const chunks = chunkPages(pages);
+  const withSection = chunks.filter((c) => c.section).length;
 
   const manufacturer = detectManufacturer(filename);
   const model = detectModel(filename);
@@ -131,7 +130,9 @@ async function ingestPdf(taskType, absPath, relPath) {
   insertChunks(documentId, chunks);
 
   const meta = [manufacturer, model].filter(Boolean).join(' ');
-  console.log(`  ✓ ${filename}${meta ? ` (${meta})` : ''} — ${rawPages.length} pages, ${chunks.length} chunks`);
+  console.log(
+    `  ✓ ${filename}${meta ? ` (${meta})` : ''} — ${pages.length} pages, ${chunks.length} chunks (${withSection} with a detected section)`
+  );
   return { chunks: chunks.length };
 }
 

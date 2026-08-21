@@ -29,14 +29,17 @@ export async function extractText(buffer, mimeType) {
 }
 
 /**
- * Page-aware extraction — the ingestion pipeline needs this so a citation
- * can say "page 42" instead of just "this PDF somewhere". Uses pdf-parse's
- * `pagerender` hook (it already depends on pdfjs-dist internally) to walk
- * each page's text items and reconstruct line breaks from Y-position jumps,
- * capturing the real page number alongside each page's text.
+ * Page-aware, line-structured extraction — the ingestion pipeline needs
+ * this so a citation can say "page 42" instead of just "this PDF
+ * somewhere", and so chunking (rag/chunk.js) can detect section headings
+ * from real font-size information already present in the PDF (never
+ * guessed from content). Uses pdf-parse's `pagerender` hook (it already
+ * depends on pdfjs-dist internally) to walk each page's text items,
+ * grouping them into lines by Y-position and recording each line's max
+ * font size from its glyph transform matrix.
  *
  * @param {Buffer} buffer
- * @returns {Promise<{ pageNumber: number, text: string }[]>} empty array on failure
+ * @returns {Promise<{ pageNumber: number, lines: { text: string, fontSize: number }[] }[]>} empty array on failure
  */
 export async function extractPages(buffer) {
   const pages = [];
@@ -44,15 +47,22 @@ export async function extractPages(buffer) {
     await pdfParse(buffer, {
       pagerender: async (pageData) => {
         const textContent = await pageData.getTextContent();
-        let lastY;
-        let text = '';
+        const lines = [];
+        let current = null;
         for (const item of textContent.items) {
-          if (lastY !== undefined && Math.abs(item.transform[5] - lastY) > 1) text += '\n';
-          text += item.str;
-          lastY = item.transform[5];
+          const y = item.transform[5];
+          const fontSize = Math.abs(item.transform[3]) || Math.abs(item.transform[0]) || 0;
+          if (current && Math.abs(y - current.y) <= 1) {
+            current.text += item.str;
+            current.fontSize = Math.max(current.fontSize, fontSize);
+          } else {
+            if (current) lines.push({ text: current.text, fontSize: current.fontSize });
+            current = { y, text: item.str, fontSize };
+          }
         }
-        pages.push({ pageNumber: pageData.pageNumber, text });
-        return text;
+        if (current) lines.push({ text: current.text, fontSize: current.fontSize });
+        pages.push({ pageNumber: pageData.pageNumber, lines });
+        return lines.map((l) => l.text).join('\n');
       },
     });
   } catch (err) {
