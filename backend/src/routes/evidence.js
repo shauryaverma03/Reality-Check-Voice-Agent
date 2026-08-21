@@ -13,10 +13,24 @@ import { getTaskOr404, logAgentRun, serializeEvidence } from './helpers.js';
 
 const router = Router({ mergeParams: true });
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
+export const DATA_DIR = path.join(process.cwd(), 'data');
+export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-const upload = multer({ dest: UPLOAD_DIR, limits: { fileSize: 8 * 1024 * 1024 } });
+
+// multer's `dest: UPLOAD_DIR` shorthand only trusts the directory exists —
+// it doesn't recreate it per request. If UPLOAD_DIR is ever removed after
+// the server starts (a wiped data/ dir, a fresh deploy volume, etc.), every
+// upload then fails with ENOENT until the process restarts. This custom
+// diskStorage `destination` callback re-creates it right before every
+// write, so the upload path is self-healing instead of depending on
+// server-start timing. Exported (not just used inline) so
+// evidence.eval.js can regression-test the self-healing behavior directly.
+export function resolveUploadDestination(req, file, cb) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  cb(null, UPLOAD_DIR);
+}
+const storage = multer.diskStorage({ destination: resolveUploadDestination });
+const upload = multer({ storage, limits: { fileSize: 8 * 1024 * 1024 } });
 
 // GET /api/v1/tasks/:taskId/evidence
 router.get('/', (req, res) => {
