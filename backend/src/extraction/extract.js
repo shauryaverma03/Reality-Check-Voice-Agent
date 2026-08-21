@@ -60,13 +60,18 @@ const KNOWN_NUMBER_PATTERNS = {
 
 /**
  * Generic fallback pattern for a numeric field the app doesn't have a
- * hand-tuned regex for: trigger on the field's key (underscores treated as
- * optional spaces) followed by a number. Best-effort only — if it doesn't
- * match, the field simply comes back missing (honest NEED_MORE_EVIDENCE,
+ * hand-tuned regex for: trigger on ANY individual word of the field's key
+ * (not the whole key glued together) followed by a number. A key like
+ * 'internal_temperature' has to match a technician just saying "temperature
+ * is 8" — requiring the literal word "internal" too would never fire on
+ * real speech. Short words (<3 chars) are excluded from being a trigger on
+ * their own to keep false-positive risk down. Best-effort only — if nothing
+ * matches, the field simply comes back missing (honest NEED_MORE_EVIDENCE,
  * never a guessed value).
  */
 function genericNumberPattern(field) {
-  const trigger = escapeRegExp(field.key).replace(/_/g, '[\\s_]*');
+  const words = field.key.split('_').map(escapeRegExp).filter((w) => w.length >= 3);
+  const trigger = words.length > 0 ? `(?:${words.join('|')})` : escapeRegExp(field.key);
   return new RegExp(`${trigger}[^0-9-]*(-?\\d+(?:\\.\\d+)?)`, 'i');
 }
 
