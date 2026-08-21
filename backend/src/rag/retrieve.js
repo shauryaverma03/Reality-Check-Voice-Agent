@@ -201,6 +201,19 @@ export function detectRangeConflict(results) {
 }
 
 /**
+ * Well-known industry abbreviation expansions for specific checklist field
+ * keys — TF-IDF does exact token matching, so a reference source that spells
+ * out "Total Dissolved Solids" instead of using the abbreviation "TDS"
+ * would otherwise never surface for a tds_output query. This is a real,
+ * defensible synonym (the abbreviation's actual expansion), not an invented
+ * one — kept as a small explicit map rather than generic synonym expansion,
+ * which would risk pulling in loosely-related content.
+ */
+const FIELD_QUERY_SYNONYMS = {
+  tds_output: 'total dissolved solids',
+};
+
+/**
  * Field-aware query composition — task_type + field key/label + the value
  * actually extracted for this field (if any) + the technician's raw claim
  * text. Deliberately NOT just the raw claim text: this lets a chunk that's
@@ -208,7 +221,7 @@ export function detectRangeConflict(results) {
  * both appear in the same manual.
  */
 export function buildFieldQuery({ taskType, field, extractedValue, rawText }) {
-  const parts = [taskType, field.key, field.label];
+  const parts = [taskType, field.key, field.label, FIELD_QUERY_SYNONYMS[field.key]];
   if (field.unit) parts.push(field.unit);
   if (extractedValue !== undefined && extractedValue !== null && extractedValue !== '') {
     parts.push(String(extractedValue));

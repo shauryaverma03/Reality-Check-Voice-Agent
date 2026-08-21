@@ -10,7 +10,8 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "seed": "node src/db/seed.js",
-    "ingest:knowledge": "node src/rag/ingest.js"
+    "ingest:knowledge": "node src/rag/ingest.js",
+    "eval:rag": "node src/rag/retrieve.eval.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
