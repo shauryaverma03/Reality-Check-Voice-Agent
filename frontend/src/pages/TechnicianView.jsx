@@ -269,7 +269,7 @@ export default function TechnicianView() {
           <p className="muted">Pick a service, speak your claim, upload evidence, get verified.</p>
 
           <form onSubmit={handleCreateTask} className="form">
-            <div className="service-card-grid" role="radiogroup" aria-label="Service type">
+            <div className="service-card-grid" data-tour="service-select" role="radiogroup" aria-label="Service type">
               {(checklists.length > 0 ? checklists.map((c) => c.task_type) : Object.keys(SERVICE_INFO)).map((t) => {
                 const info = SERVICE_INFO[t] || { icon: '🔧', label: t, blurb: '' };
                 return (
@@ -323,7 +323,7 @@ export default function TechnicianView() {
             <StatusPill status={task.status} />
           </div>
 
-          <section className="section" ref={claimSectionRef}>
+          <section className="section" ref={claimSectionRef} data-tour="claim-section">
             <h2>1. State your claim</h2>
             <p className="muted small">Tell RealityCheck what you did — task, machine ID, and any readings.</p>
             <form onSubmit={handleSubmitClaim} className="claim-form">
@@ -354,7 +354,7 @@ export default function TechnicianView() {
             </form>
           </section>
 
-          <section className="section" ref={evidenceSectionRef}>
+          <section className="section" ref={evidenceSectionRef} data-tour="evidence-section">
             <h2>2. Provide evidence</h2>
             <div className="photo-grid">
               {evidenceFields.map(({ key, label, type, required }) => (
@@ -391,7 +391,7 @@ export default function TechnicianView() {
             </div>
           </section>
 
-          <section className="section">
+          <section className="section" data-tour="verify-section">
             <h2>3. Run verification</h2>
             <button className="btn primary large" onClick={handleVerify} disabled={verifying}>
               {verifying ? 'Verifying…' : 'Run Verification'}

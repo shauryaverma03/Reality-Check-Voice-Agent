@@ -1261,3 +1261,68 @@ select {
   margin-top: 4px;
 }
 .source-card-link:hover { text-decoration: underline; }
+
+/* ---------------------------------------------------------------------- */
+/* Onboarding tour (spec section 13)                                       */
+/* ---------------------------------------------------------------------- */
+
+.tour-root {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+}
+.tour-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  animation: tourFadeIn 200ms ease;
+}
+@keyframes tourFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.tour-spotlight {
+  position: fixed;
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.55);
+  border: 2px solid var(--primary);
+  transition: top 280ms ease, left 280ms ease, width 280ms ease, height 280ms ease;
+  pointer-events: none;
+}
+
+.tour-card {
+  position: fixed;
+  z-index: 2001;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 18px 20px;
+  transition: top 280ms ease, left 280ms ease;
+}
+.tour-card-center {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.tour-card-step {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--primary);
+  margin-bottom: 6px;
+}
+.tour-card-title { margin: 0 0 8px; font-size: 1.05rem; }
+.tour-card-body { margin: 0 0 16px; font-size: 0.88rem; color: var(--text-muted); line-height: 1.5; }
+.tour-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tour-card-nav { display: flex; gap: 8px; }
