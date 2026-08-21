@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.js';
+import TiltCard from '../components/TiltCard.jsx';
 
 const STEPS = [
   {
@@ -21,9 +22,9 @@ const STEPS = [
 ];
 
 const DECISIONS = [
-  { key: 'verified', label: 'VERIFIED', desc: 'Everything present, consistent, in range. Comes with an evidence score out of 100.' },
-  { key: 'need_more_evidence', label: 'NEED_MORE_EVIDENCE', desc: 'Something required is missing — RealityCheck asks one targeted follow-up question.' },
-  { key: 'conflict', label: 'CONFLICT_HUMAN_REVIEW', desc: 'A reading is out of spec, or two sources disagree beyond measurement noise. Escalated, not guessed at.' },
+  { key: 'verified', icon: '✅', label: 'VERIFIED', desc: 'Everything present, consistent, in range. Comes with an evidence score out of 100.' },
+  { key: 'need_more_evidence', icon: '❓', label: 'NEED_MORE_EVIDENCE', desc: 'Something required is missing — RealityCheck asks one targeted follow-up question.' },
+  { key: 'conflict', icon: '🚩', label: 'CONFLICT_HUMAN_REVIEW', desc: 'A reading is out of spec, or two sources disagree beyond measurement noise. Escalated, not guessed at.' },
 ];
 
 export default function HomePage() {
@@ -48,27 +49,76 @@ export default function HomePage() {
   return (
     <div className="home">
       <section className="hero">
-        <div className="hero-badge">Vocallabs Hackathon Drive · Multimodal Track</div>
-        <h1 className="hero-title">
-          Don't ask <em>"did you finish?"</em>
-          <br />
-          Ask <span className="accent">"prove it."</span>
-        </h1>
-        <p className="hero-sub">
-          RealityCheck cross-checks a technician's spoken job claim against photo evidence and a procedure
-          checklist — and only calls a job done when the evidence actually agrees.
-        </p>
-        <div className="hero-actions">
-          <Link className="btn primary large" to="/technician">
-            🎙️ Start a job (Technician)
-          </Link>
-          <Link className="btn secondary large" to="/supervisor">
-            📋 Open Supervisor Dashboard
-          </Link>
+        <div className="hero-blob hero-blob-1" aria-hidden="true" />
+        <div className="hero-blob hero-blob-2" aria-hidden="true" />
+        <div className="hero-blob hero-blob-3" aria-hidden="true" />
+
+        <div className="hero-grid">
+          <div className="hero-copy">
+            <div className="hero-badge">Vocallabs Hackathon Drive · Multimodal Track</div>
+            <h1 className="hero-title">
+              Don't ask <em>"did you finish?"</em>
+              <br />
+              Ask <span className="accent">"prove it."</span>
+            </h1>
+            <p className="hero-sub">
+              RealityCheck cross-checks a technician's spoken job claim against photo evidence and a procedure
+              checklist — and only calls a job done when the evidence actually agrees.
+            </p>
+            <div className="hero-actions">
+              <Link className="btn primary large" to="/technician">
+                🎙️ Start a job (Technician)
+              </Link>
+              <Link className="btn secondary large" to="/supervisor">
+                📋 Open Supervisor Dashboard
+              </Link>
+            </div>
+            <Link className="hero-guide-link" to="/guide">
+              New here? Read the guide →
+            </Link>
+          </div>
+
+          <div className="hero-visual" aria-hidden="true">
+            <TiltCard className="mock-device" maxTilt={9}>
+              <div className="mock-device-frame">
+                <div className="mock-device-topbar">
+                  <span className="mock-dot mock-dot-red" />
+                  <span className="mock-dot mock-dot-yellow" />
+                  <span className="mock-dot mock-dot-green" />
+                </div>
+                <div className="mock-screen">
+                  <div className="mock-status-row">
+                    <span className="status-pill status-verified">Verified</span>
+                    <span className="mock-score">100<span className="mock-score-max">/100</span></span>
+                  </div>
+                  <div className="mock-field-row">
+                    <span>machine_id</span>
+                    <span className="field-status field-status-ok">OK</span>
+                  </div>
+                  <div className="mock-field-row">
+                    <span>pressure</span>
+                    <span className="field-status field-status-ok">OK</span>
+                  </div>
+                  <div className="mock-field-row">
+                    <span>temperature</span>
+                    <span className="field-status field-status-borderline">Borderline</span>
+                  </div>
+                  <div className="mock-field-row">
+                    <span>serial_photo</span>
+                    <span className="field-status field-status-ok">OK</span>
+                  </div>
+                  <div className="mock-field-row">
+                    <span>final_photo</span>
+                    <span className="field-status field-status-ok">OK</span>
+                  </div>
+                </div>
+              </div>
+            </TiltCard>
+            <div className="floating-chip chip-mic">🎙️ Voice claim</div>
+            <div className="floating-chip chip-cam">📷 Photo evidence</div>
+            <div className="floating-chip chip-checklist">📋 Checklist</div>
+          </div>
         </div>
-        <Link className="hero-guide-link" to="/guide">
-          New here? Read the guide →
-        </Link>
       </section>
 
       <section className="stats-strip">
@@ -104,11 +154,11 @@ export default function HomePage() {
         <h2 className="section-title">How it works</h2>
         <div className="steps-grid">
           {STEPS.map((s) => (
-            <div key={s.title} className="step-card">
-              <div className="step-icon">{s.icon}</div>
+            <TiltCard key={s.title} className="step-card" maxTilt={6}>
+              <div className="step-icon-badge">{s.icon}</div>
               <h3>{s.title}</h3>
               <p className="muted">{s.text}</p>
-            </div>
+            </TiltCard>
           ))}
         </div>
       </section>
@@ -117,15 +167,17 @@ export default function HomePage() {
         <h2 className="section-title">Every job ends in one of three decisions</h2>
         <div className="decision-grid">
           {DECISIONS.map((d) => (
-            <div key={d.key} className={`decision-card decision-${d.key}`}>
+            <TiltCard key={d.key} className={`decision-card decision-${d.key}`} maxTilt={5}>
+              <div className="decision-icon">{d.icon}</div>
               <span className={`status-pill status-${d.key}`}>{d.label.replace(/_/g, ' ')}</span>
               <p className="muted">{d.desc}</p>
-            </div>
+            </TiltCard>
           ))}
         </div>
       </section>
 
       <section className="persona-block">
+        <div className="persona-icon">🔧</div>
         <h2 className="section-title">Built for a real technician, not "field workers" in general</h2>
         <p className="muted">
           An AMC (annual maintenance contract) technician servicing split-ACs and RO purifiers for a local service

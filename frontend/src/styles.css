@@ -301,12 +301,65 @@ textarea {
 .home { display: flex; flex-direction: column; gap: 40px; }
 
 .hero {
-  text-align: center;
-  padding: 56px 24px 40px;
+  position: relative;
+  overflow: hidden;
+  padding: 56px 32px;
   background: linear-gradient(160deg, var(--primary) 0%, #2b4d78 100%);
   color: #fff;
   border-radius: 14px;
 }
+
+/* Floating gradient blobs — pure CSS, no images */
+.hero-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(50px);
+  pointer-events: none;
+  z-index: 0;
+  animation: floatBlob 10s ease-in-out infinite;
+}
+.hero-blob-1 {
+  width: 320px;
+  height: 320px;
+  top: -120px;
+  right: -80px;
+  background: radial-gradient(circle, rgba(255, 211, 110, 0.45), transparent 70%);
+  animation-delay: 0s;
+}
+.hero-blob-2 {
+  width: 260px;
+  height: 260px;
+  bottom: -100px;
+  left: -60px;
+  background: radial-gradient(circle, rgba(120, 170, 255, 0.4), transparent 70%);
+  animation-delay: -3.5s;
+}
+.hero-blob-3 {
+  width: 180px;
+  height: 180px;
+  top: 40%;
+  right: 12%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.25), transparent 70%);
+  animation-delay: -6s;
+}
+@keyframes floatBlob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-16px, 22px) scale(1.08); }
+}
+
+.hero-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 36px;
+  align-items: center;
+}
+@media (max-width: 860px) {
+  .hero-grid { grid-template-columns: 1fr; }
+  .hero-copy { text-align: center; }
+}
+
 .hero-badge {
   display: inline-block;
   font-size: 0.72rem;
@@ -318,7 +371,7 @@ textarea {
   margin-bottom: 18px;
 }
 .hero-title {
-  font-size: 2.2rem;
+  font-size: 2.1rem;
   line-height: 1.25;
   margin: 0 0 16px;
   font-weight: 800;
@@ -326,19 +379,20 @@ textarea {
 .hero-title em { font-style: italic; opacity: 0.85; }
 .hero-title .accent { color: #ffd36e; }
 .hero-sub {
-  max-width: 620px;
-  margin: 0 auto 26px;
+  max-width: 520px;
+  margin: 0 0 26px;
   color: rgba(255, 255, 255, 0.88);
   font-size: 1.02rem;
   line-height: 1.55;
 }
+@media (max-width: 860px) { .hero-sub { margin: 0 auto 26px; } }
 .hero-actions {
   display: flex;
   gap: 14px;
-  justify-content: center;
   flex-wrap: wrap;
   margin-bottom: 16px;
 }
+@media (max-width: 860px) { .hero-actions { justify-content: center; } }
 .hero-actions .btn.secondary {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
@@ -349,6 +403,95 @@ textarea {
   color: rgba(255, 255, 255, 0.85);
   font-size: 0.88rem;
   text-decoration: underline;
+}
+
+/* ---- 3D tilt mechanism (shared by hero mockup, step cards, decision cards) --- */
+.tilt-card {
+  transition: transform 0.15s ease-out;
+  will-change: transform;
+  position: relative;
+}
+.tilt-glare {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at var(--glare-x, 50%) var(--glare-y, 50%), rgba(255, 255, 255, 0.35), transparent 55%);
+  opacity: var(--glare-o, 0);
+  transition: opacity 0.2s ease-out;
+  pointer-events: none;
+}
+
+/* ---- Hero 3D device mockup ---- */
+.hero-visual {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  padding: 44px;
+}
+.mock-device {
+  width: 100%;
+  max-width: 260px;
+  border-radius: 16px;
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.45), 0 10px 24px -8px rgba(0, 0, 0, 0.3);
+}
+.mock-device-frame {
+  background: var(--surface);
+  border-radius: 16px;
+  overflow: hidden;
+  color: var(--text);
+}
+.mock-device-topbar {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  background: #eef0f3;
+}
+.mock-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.mock-dot-red { background: #ff5f57; }
+.mock-dot-yellow { background: #febc2e; }
+.mock-dot-green { background: #28c840; }
+.mock-screen { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.mock-status-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.mock-score { font-size: 1.3rem; font-weight: 800; color: var(--ok); }
+.mock-score-max { font-size: 0.8rem; font-weight: 500; color: var(--muted); }
+.mock-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.mock-field-row:last-child { border-bottom: none; padding-bottom: 0; }
+
+.floating-chip {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.35);
+  animation: floatChip 4.5s ease-in-out infinite;
+  z-index: 2;
+}
+/* All three sit above/below the card — never beside it — so they can never
+   cover the field rows regardless of exact card/chip pixel widths. */
+.chip-mic { top: 2px; left: 6px; animation-delay: 0s; }
+.chip-checklist { top: 2px; right: 6px; animation-delay: -3s; }
+.chip-cam { bottom: 2px; left: 36%; animation-delay: -1.5s; }
+@media (max-width: 480px) {
+  .chip-mic, .chip-cam, .chip-checklist { display: none; }
+}
+@keyframes floatChip {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 
 .stats-strip {
@@ -383,8 +526,21 @@ textarea {
   border-radius: var(--radius);
   padding: 22px;
   text-align: center;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
-.step-icon { font-size: 1.8rem; margin-bottom: 8px; }
+.step-card:hover { box-shadow: 0 20px 40px -16px rgba(16, 24, 40, 0.22); border-color: transparent; }
+.step-icon-badge {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  border-radius: 50%;
+  background: linear-gradient(150deg, #eaf0fb 0%, #dbe6fa 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 6px 14px -8px rgba(30, 58, 95, 0.35);
+}
 .step-card h3 { margin: 0 0 8px; font-size: 1rem; }
 .step-card p { margin: 0; font-size: 0.88rem; }
 
@@ -403,18 +559,34 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
+.decision-card:hover { box-shadow: 0 18px 36px -16px rgba(16, 24, 40, 0.22); }
+.decision-icon { font-size: 1.3rem; }
 .decision-card p { margin: 0; font-size: 0.85rem; }
 .decision-verified { border-left-color: var(--ok); }
 .decision-need_more_evidence { border-left-color: var(--warn); }
 .decision-conflict { border-left-color: var(--conflict); }
 
 .persona-block {
-  background: #f7f8fa;
+  position: relative;
+  background: linear-gradient(180deg, #f7f8fa 0%, #eef1f6 100%);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 24px;
+  padding: 32px 24px;
   text-align: center;
+}
+.persona-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  border-radius: 50%;
+  background: linear-gradient(150deg, var(--primary) 0%, #2b4d78 100%);
+  box-shadow: 0 10px 22px -8px rgba(30, 58, 95, 0.5);
 }
 .persona-block p { max-width: 700px; margin: 12px auto 0; line-height: 1.6; }
 
