@@ -105,6 +105,10 @@ export default function TechnicianView() {
     requiredEvidenceFields.length > 0 && requiredEvidenceFields.every((f) => uploaded[f.key]);
 
   // Derived purely from real state — never a simulated/fake progress value.
+  // Per-step, not a single cutoff: nothing stops a technician from running
+  // verification before evidence is uploaded, so "done" must reflect what
+  // actually happened at each step independently.
+  const stepDone = [Boolean(task), claimSubmitted, allRequiredEvidenceUploaded, Boolean(verification), Boolean(verification)];
   const currentStepIndex = !task
     ? 0
     : !claimSubmitted
@@ -259,7 +263,7 @@ export default function TechnicianView() {
   if (!task) {
     return (
       <div className="technician-start">
-        <StepIndicator currentIndex={0} />
+        <StepIndicator done={[false, false, false, false, false]} currentIndex={0} />
         <div className="card">
           <h1>Start a job</h1>
           <p className="muted">Pick a service, speak your claim, upload evidence, get verified.</p>
@@ -305,7 +309,7 @@ export default function TechnicianView() {
 
   return (
     <div className="technician-in-progress">
-      <StepIndicator currentIndex={currentStepIndex} />
+      <StepIndicator done={stepDone} currentIndex={currentStepIndex} />
       <div className="technician-layout">
         <div className="card">
           <div className="task-header">
