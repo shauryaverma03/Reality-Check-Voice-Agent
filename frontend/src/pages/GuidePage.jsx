@@ -161,6 +161,31 @@ export default function GuidePage() {
       </section>
 
       <section className="section">
+        <h2>What "verified" does and does not mean</h2>
+        <p className="muted">
+          This is the most important limit to understand about RealityCheck, and it's worth being blunt about.
+          Satisfying a checklist proves that <strong>the submitted evidence is consistent and the readings are
+          inside spec</strong>. That is not the same claim as <strong>"the appliance is physically working
+          again"</strong>. A technician can hit every compliance field on an AC job — correct machine ID, gas
+          pressure in range, both photos clear — and the room can still be warm.
+        </p>
+        <p className="muted">
+          So RealityCheck grades a second, separate axis: <strong>functional outcome</strong>. Certain checklist
+          fields are post-repair measurements that can only land in range if the unit is actually doing its job —
+          an AC's return-vs-supply air temperature split, an RO's output water quality and flow rate, a fridge's
+          cabinet temperature after a real stabilization period, a washer's completed test cycle. Every result
+          reports that axis on its own and states in plain language what it actually proves, so a green badge is
+          never quietly read as more than it is.
+        </p>
+        <p className="muted">
+          RealityCheck also distinguishes <strong>measured</strong> proof from <strong>self-reported</strong>
+          proof. A number checked against a spec range is evidence; a technician typing "yes, it works" is an
+          assertion. An assertion on its own never counts as demonstrated function — it's shown as the
+          technician's word, labelled as such.
+        </p>
+      </section>
+
+      <section className="section">
         <h2>How image evidence is actually checked</h2>
         <p className="muted">
           An uploaded photo is never assumed valid just because a file exists — a file existing only proves a file
