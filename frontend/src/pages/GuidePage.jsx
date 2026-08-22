@@ -338,8 +338,10 @@ export default function GuidePage() {
         <dl className="faq">
           <dt>Do I need an API key to try this?</dt>
           <dd>
-            No. Without <code>ANTHROPIC_API_KEY</code> set, voice claims are parsed by a heuristic regex fallback and
-            photos are presence-only (no OCR) — the full loop, including all four decisions, still works.
+            No. Without <code>ANTHROPIC_API_KEY</code> set, voice claims are parsed by a heuristic regex fallback,
+            and photos skip field-value OCR (no guessing a reading without a vision model) but still get a real,
+            deterministic quality check on file size and pixel dimensions — the full loop, including all five
+            decisions, still works.
           </dd>
           <dt>Why does RealityCheck ask for multiple photos?</dt>
           <dd>
