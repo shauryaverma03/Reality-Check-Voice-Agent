@@ -361,6 +361,95 @@ function evaluateField(field, claim, evidence, taskContext) {
 }
 
 /**
+ * The COMPLIANCE-vs-FUNCTION split (see the long note in checklists.js).
+ *
+ * Everything else in this file answers "is the submitted evidence internally
+ * consistent and inside spec?" — which is NOT the same question as "is the
+ * appliance physically working again?". A technician can satisfy every
+ * compliance field on an AC job and the room can still be warm.
+ *
+ * This function answers the second question separately, using only the
+ * checklist fields explicitly marked `functional: true` — measurements that
+ * can only land in range if the machine is actually doing its job. It never
+ * upgrades an assertion into a measurement: a field declared
+ * evidenceStrength 'self_reported' is reported as the technician's word,
+ * and on its own is never enough to call function demonstrated.
+ *
+ * @returns {{ applicable: boolean, status: 'demonstrated'|'partially_demonstrated'|'not_demonstrated'|'not_applicable',
+ *   summary: string, checks: Array }}
+ */
+function evaluateFunctionalOutcome(checklist, fields) {
+  const functionalFields = checklist.filter((f) => f.functional);
+  if (functionalFields.length === 0) {
+    return {
+      applicable: false,
+      status: 'not_applicable',
+      summary: 'This checklist defines no post-repair functional test, so nothing here speaks to whether the unit is physically working.',
+      checks: [],
+    };
+  }
+
+  const checks = functionalFields.map((field) => {
+    const result = fields.find((r) => r.key === field.key);
+    const strength = field.evidenceStrength || 'self_reported';
+    const passed = result && (result.status === 'ok' || result.status === 'borderline');
+    const reported = result && result.sources && result.sources.length > 0;
+
+    let status;
+    let message;
+    if (!reported) {
+      status = 'not_provided';
+      message = `No ${field.label.toLowerCase()} was reported, so there is no evidence the unit is working after the repair.`;
+    } else if (!passed) {
+      status = 'failed';
+      message = `${field.label} was reported but is outside the working range — this is evidence the unit is NOT performing correctly.`;
+    } else if (strength === 'self_reported') {
+      status = 'asserted';
+      message = `${field.label}: reported as done by the technician. This is an assertion, not a measurement — it is not independent proof the unit works.`;
+    } else {
+      status = 'demonstrated';
+      message = `${field.label} measured within the working range — real evidence the unit is performing after the repair.`;
+    }
+
+    return { key: field.key, label: field.label, evidenceStrength: strength, status, message };
+  });
+
+  const measuredDemonstrated = checks.filter((c) => c.status === 'demonstrated');
+  const failed = checks.filter((c) => c.status === 'failed');
+  const missing = checks.filter((c) => c.status === 'not_provided');
+
+  let status;
+  let summary;
+  if (failed.length > 0) {
+    status = 'not_demonstrated';
+    summary = `A post-repair functional measurement is outside its working range — the evidence suggests this unit is still not performing correctly.`;
+  } else if (measuredDemonstrated.length === 0) {
+    status = 'not_demonstrated';
+    summary = missing.length > 0
+      ? `No post-repair functional measurement was provided. The paperwork and readings are consistent, but nothing here shows the unit is physically working again.`
+      : `The only functional evidence is the technician's own assertion. Nothing independently measured shows the unit is physically working again.`;
+  } else if (missing.length > 0 || checks.some((c) => c.status === 'asserted')) {
+    status = 'partially_demonstrated';
+    summary = `Some post-repair function was measured, but not all of it — the remaining functional checks were skipped or only self-reported.`;
+  } else {
+    status = 'demonstrated';
+    summary = `Post-repair function was measured and is within the working range — this is real evidence the unit is operating, not just that the procedure was followed.`;
+  }
+
+  return { applicable: true, status, summary, checks };
+}
+
+/** Plain-language statement of what a decision actually proves — used so a
+ * report never lets a green badge imply more than was really checked. */
+function verificationScope(decision, functional) {
+  if (decision !== 'VERIFIED') return 'Not verified — see the reason below.';
+  if (!functional.applicable) return 'Evidence is consistent with the checklist. This checklist defines no functional test, so this does NOT establish that the unit is working.';
+  if (functional.status === 'demonstrated') return 'Evidence is consistent with the checklist AND post-repair function was measured within range.';
+  if (functional.status === 'partially_demonstrated') return 'Evidence is consistent with the checklist, and function was partly measured — some functional checks were skipped or self-reported only.';
+  return 'Evidence is consistent with the checklist, but function was NOT demonstrated.';
+}
+
+/**
  * % of required fields matched (ok/borderline), minus per-field penalties.
  * Pulled out of verifyTask so verifyTaskWithReferences can recompute the
  * score after it revises a field's status, using the exact same formula —
@@ -427,11 +516,15 @@ export function verifyTask({ checklist, claim = null, evidence = [], taskContext
     decision = 'VERIFIED';
   }
 
+  const functional = evaluateFunctionalOutcome(checklist, fields);
+
   return {
     decision,
     evidence_score: computeScore(checklist, fields),
     follow_up_question: followUpQuestion,
     fields,
+    functional_verification: functional,
+    verification_scope: verificationScope(decision, functional),
   };
 }
 
@@ -517,11 +610,15 @@ export function verifyTaskWithReferences({ checklist, claim = null, evidence = [
     return [];
   });
 
+  const functional = evaluateFunctionalOutcome(checklist, fields);
+
   return {
     decision,
     evidence_score: computeScore(checklist, fields),
     follow_up_question: followUpQuestion,
     fields,
     citations,
+    functional_verification: functional,
+    verification_scope: verificationScope(decision, functional),
   };
 }

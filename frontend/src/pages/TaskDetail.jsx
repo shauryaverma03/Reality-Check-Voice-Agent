@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { api, API_BASE_URL } from '../api.js';
 import StatusPill from '../components/StatusPill.jsx';
 import FieldBreakdown from '../components/FieldBreakdown.jsx';
+import FunctionalOutcome from '../components/FunctionalOutcome.jsx';
 import { citationLabel, citationEquipment } from '../citations.js';
 
 const TASK_TYPE_LABELS = {
@@ -129,6 +130,11 @@ export default function TaskDetail() {
                 {verification.follow_up_question}
               </p>
             )}
+            <FunctionalOutcome
+              functional={verification.functional_verification}
+              scope={verification.verification_scope}
+            />
+
             <FieldBreakdown fields={verification.fields} />
             {verification.citations && verification.citations.length > 0 && (
               <div className="citations-block">

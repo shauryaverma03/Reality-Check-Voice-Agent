@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import StatusPill from '../components/StatusPill.jsx';
 import FieldBreakdown from '../components/FieldBreakdown.jsx';
+import FunctionalOutcome from '../components/FunctionalOutcome.jsx';
 import StepIndicator from '../components/StepIndicator.jsx';
 import VerificationTrace from '../components/VerificationTrace.jsx';
 import FollowUpCallout from '../components/FollowUpCallout.jsx';
@@ -583,6 +584,11 @@ export default function TechnicianView() {
                     {verification.follow_up_question}
                   </p>
                 )}
+
+                <FunctionalOutcome
+                  functional={verification.functional_verification}
+                  scope={verification.verification_scope}
+                />
 
                 <FieldBreakdown fields={verification.fields} />
                 {verification.citations && verification.citations.length > 0 && (

@@ -640,6 +640,121 @@ testCase({
 });
 
 // ---------------------------------------------------------------------------
+// 50-56. COMPLIANCE vs. FUNCTION — the conceptual gap this project's own
+// docs used to gloss over: satisfying a checklist proves the evidence is
+// consistent, NOT that the appliance is physically working again. Fields
+// marked `functional: true` in checklists.js are evaluated on a separate
+// axis and reported separately, and a self-reported assertion is never
+// presented as if it were a measurement.
+// ---------------------------------------------------------------------------
+
+testCase({
+  name: 'FUNCTION: AC compliance fully satisfied but no cooling_delta reported -> compliance VERIFIED, function explicitly NOT demonstrated (the exact gap: a serviced AC that may still not cool)',
+  checklist: AC_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'AC-1024' },
+  claim: { data: { machine_id: 'AC-1024', pressure: 4.2, temperature: 80 } },
+  evidence: [
+    { role: 'serial_photo', quality: { readable: true }, extractionSource: 'claude' },
+    { role: 'final_photo', quality: { readable: true }, extractionSource: 'claude' },
+  ],
+  expect: {
+    decision: 'VERIFIED',
+    functionalStatus: 'not_demonstrated',
+    scopeContains: 'function was NOT demonstrated',
+  },
+});
+
+testCase({
+  name: 'FUNCTION: AC with a measured in-range cooling_delta -> function demonstrated, scope says so',
+  checklist: AC_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'AC-1024' },
+  claim: { data: { machine_id: 'AC-1024', pressure: 4.2, temperature: 80, cooling_delta: 11 } },
+  evidence: [
+    { role: 'serial_photo', quality: { readable: true }, extractionSource: 'claude' },
+    { role: 'final_photo', quality: { readable: true }, extractionSource: 'claude' },
+  ],
+  expect: {
+    decision: 'VERIFIED',
+    functionalStatus: 'demonstrated',
+    scopeContains: 'post-repair function was measured',
+  },
+});
+
+testCase({
+  name: 'FUNCTION: AC cooling_delta of 3°C (unit is NOT cooling) -> out_of_range, CONFLICT, function not demonstrated — the failure mode compliance-only checking would have passed',
+  checklist: AC_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'AC-1024' },
+  claim: { data: { machine_id: 'AC-1024', pressure: 4.2, temperature: 80, cooling_delta: 3 } },
+  evidence: [
+    { role: 'serial_photo', quality: { readable: true }, extractionSource: 'claude' },
+    { role: 'final_photo', quality: { readable: true }, extractionSource: 'claude' },
+  ],
+  expect: {
+    decision: 'CONFLICT_HUMAN_REVIEW',
+    fieldStatuses: { cooling_delta: 'out_of_range' },
+    functionalStatus: 'not_demonstrated',
+  },
+});
+
+testCase({
+  name: 'FUNCTION: washer test_cycle_completed is self_reported — an assertion is never counted as demonstrated function, even when everything else passes',
+  checklist: WASHER_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'WM-302' },
+  claim: { data: { machine_id: 'WM-302', drainage_check: true, vibration_check: true, test_cycle_completed: true } },
+  evidence: [
+    { role: 'serial_photo', quality: { readable: true }, extractionSource: 'claude' },
+    { role: 'error_code_photo', quality: { readable: true }, extractionSource: 'claude' },
+  ],
+  expect: {
+    decision: 'VERIFIED',
+    functionalStatus: 'not_demonstrated', // only self-reported evidence exists
+    scopeContains: 'function was NOT demonstrated',
+  },
+});
+
+testCase({
+  name: 'FUNCTION: RO with both measured functional checks (tds_output + water_flow_rate) in range -> fully demonstrated',
+  checklist: RO_SERVICE_CHECKLIST,
+  mode: 'withReferences',
+  taskContext: { unit_id: 'RO-2048' },
+  claim: { data: { machine_id: 'RO-2048', tds_output: 85, filter_replaced: true, water_flow_rate: 12 } },
+  evidence: [
+    { role: 'serial_photo', quality: { readable: true }, extractionSource: 'claude' },
+    { role: 'filter_photo', quality: { readable: true }, extractionSource: 'claude' },
+  ],
+  references: { tds_output: { citation: { document_title: 'RO Manual', chunk_index: 0, snippet: '50-150 ppm', score: 0.5 } } },
+  expect: { decision: 'VERIFIED', functionalStatus: 'demonstrated' },
+});
+
+testCase({
+  name: 'FUNCTION: RO with TDS measured but flow rate never reported -> partially demonstrated, not silently upgraded to full',
+  checklist: RO_SERVICE_CHECKLIST,
+  mode: 'withReferences',
+  taskContext: { unit_id: 'RO-2048' },
+  claim: { data: { machine_id: 'RO-2048', tds_output: 85, filter_replaced: true } },
+  evidence: [
+    { role: 'serial_photo', quality: { readable: true }, extractionSource: 'claude' },
+    { role: 'filter_photo', quality: { readable: true }, extractionSource: 'claude' },
+  ],
+  references: { tds_output: { citation: { document_title: 'RO Manual', chunk_index: 0, snippet: '50-150 ppm', score: 0.5 } } },
+  expect: { decision: 'VERIFIED', functionalStatus: 'partially_demonstrated' },
+});
+
+testCase({
+  name: 'FUNCTION: fridge in-range cabinet temperature WITH a real stabilization period -> demonstrated (a reading taken after the unit actually ran)',
+  checklist: FRIDGE_SERVICE_CHECKLIST,
+  mode: 'withReferences',
+  taskContext: { unit_id: 'FR-1001' },
+  claim: { data: { machine_id: 'FR-1001', internal_temperature: 5, cooling_verified: true, stabilization_minutes: 30 } },
+  evidence: [
+    { role: 'serial_photo', quality: { readable: true }, extractionSource: 'claude' },
+    { role: 'cooling_photo', quality: { readable: true }, extractionSource: 'claude' },
+  ],
+  references: { internal_temperature: { citation: { document_title: 'Fridge Manual', chunk_index: 0, snippet: '2-8C', score: 0.5 } } },
+  expect: { decision: 'VERIFIED', functionalStatus: 'demonstrated' },
+});
+
+// ---------------------------------------------------------------------------
 // Runner
 // ---------------------------------------------------------------------------
 
@@ -681,6 +796,20 @@ function runCase(def) {
     const count = (result.citations || []).length;
     if (count !== def.expect.citationCount) {
       failures.push(`citations: expected ${def.expect.citationCount}, got ${count}`);
+    }
+  }
+
+  if (def.expect.functionalStatus) {
+    const actual = result.functional_verification?.status;
+    if (actual !== def.expect.functionalStatus) {
+      failures.push(`functional status: expected ${def.expect.functionalStatus}, got ${actual}`);
+    }
+  }
+
+  if (def.expect.scopeContains) {
+    const scope = result.verification_scope || '';
+    if (!scope.includes(def.expect.scopeContains)) {
+      failures.push(`verification_scope: expected to contain "${def.expect.scopeContains}", got "${scope}"`);
     }
   }
 

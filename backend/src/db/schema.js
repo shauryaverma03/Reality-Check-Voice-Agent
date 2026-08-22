@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS verification_results (
   evidence_score INTEGER NOT NULL,
   follow_up_question TEXT,
   fields_json TEXT NOT NULL,
+  functional_json TEXT,
+  verification_scope TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

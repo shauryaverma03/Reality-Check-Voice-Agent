@@ -42,6 +42,11 @@ export function serializeVerification(row) {
     // citations_json is NULL on rows written before the RAG phase — treat
     // that as "no citations" rather than crashing on old data.
     citations: row.citations_json ? JSON.parse(row.citations_json) : [],
+    // functional_json / verification_scope are NULL on rows written before
+    // the compliance-vs-function split — null means "this older result never
+    // asked the functional question", which the UI renders as exactly that
+    // rather than as a passing functional check.
+    functional_verification: row.functional_json ? JSON.parse(row.functional_json) : null,
   };
 }
 

@@ -131,7 +131,7 @@ router.post('/', (req, res) => {
 
   const id = randomUUID();
   db.prepare(
-    `INSERT INTO verification_results (id, task_id, decision, evidence_score, follow_up_question, fields_json, citations_json) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO verification_results (id, task_id, decision, evidence_score, follow_up_question, fields_json, citations_json, functional_json, verification_scope) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     task.id,
@@ -139,7 +139,9 @@ router.post('/', (req, res) => {
     result.evidence_score,
     result.follow_up_question,
     JSON.stringify(result.fields),
-    JSON.stringify(result.citations || [])
+    JSON.stringify(result.citations || []),
+    JSON.stringify(result.functional_verification || null),
+    result.verification_scope || null
   );
 
   db.prepare(`UPDATE tasks SET status = ?, updated_at = datetime('now') WHERE id = ?`).run(

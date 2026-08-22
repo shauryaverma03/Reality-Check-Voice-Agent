@@ -47,6 +47,11 @@ addColumnIfMissing("ALTER TABLE evidence ADD COLUMN quality_json TEXT NOT NULL D
 // model, alongside the pre-existing unit_id) — see routes/tasks.js.
 addColumnIfMissing('ALTER TABLE tasks ADD COLUMN defect TEXT');
 addColumnIfMissing('ALTER TABLE tasks ADD COLUMN machine_model TEXT');
+// The compliance-vs-function split (see checklists.js): whether anything in
+// the evidence actually shows the unit WORKS post-repair, kept separate from
+// whether the checklist was satisfied.
+addColumnIfMissing('ALTER TABLE verification_results ADD COLUMN functional_json TEXT');
+addColumnIfMissing('ALTER TABLE verification_results ADD COLUMN verification_scope TEXT');
 
 export function getChecklistForTaskType(taskType) {
   const row = db.prepare('SELECT fields_json FROM checklists WHERE task_type = ?').get(taskType);

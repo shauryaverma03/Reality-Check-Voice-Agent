@@ -1483,3 +1483,75 @@ select {
 }
 .job-summary dt { font-weight: 600; color: var(--muted); font-size: 0.85rem; }
 .job-summary dd { margin: 0; font-size: 0.85rem; }
+
+/* ---------------------------------------------------------------------- */
+/* Functional outcome — "does it actually work?", kept visually distinct   */
+/* from the compliance field table so the two claims never blur together   */
+/* ---------------------------------------------------------------------- */
+
+.functional-panel {
+  margin: 18px 0;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  border-left-width: 5px;
+  background: var(--surface);
+}
+.functional-ok { border-left-color: var(--success); background: var(--success-soft); }
+.functional-warn { border-left-color: var(--warning); background: var(--warning-soft); }
+.functional-danger { border-left-color: var(--danger); background: var(--danger-soft); }
+.functional-neutral { border-left-color: var(--border-strong); background: var(--surface-hover); }
+
+.functional-head { display: flex; gap: 14px; align-items: flex-start; }
+.functional-badge {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.05rem;
+  background: var(--surface);
+}
+.functional-badge-ok { color: var(--ok); }
+.functional-badge-warn { color: var(--warn); }
+.functional-badge-danger { color: var(--conflict); }
+.functional-badge-neutral { color: var(--muted); }
+
+.functional-title { font-weight: 800; font-size: 0.98rem; letter-spacing: 0.01em; }
+.functional-summary { margin: 4px 0 0; font-size: 0.87rem; line-height: 1.5; color: var(--text-muted); }
+
+.functional-checks { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.functional-check { display: flex; gap: 10px; align-items: flex-start; }
+.functional-check-icon { flex-shrink: 0; font-weight: 800; width: 18px; text-align: center; }
+.functional-check-ok .functional-check-icon { color: var(--ok); }
+.functional-check-warn .functional-check-icon { color: var(--warn); }
+.functional-check-danger .functional-check-icon { color: var(--conflict); }
+.functional-check-neutral .functional-check-icon { color: var(--muted); }
+.functional-check-label { font-weight: 600; font-size: 0.86rem; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.functional-check-message { font-size: 0.82rem; color: var(--text-muted); line-height: 1.45; margin-top: 2px; }
+
+.functional-strength {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: var(--surface);
+}
+.functional-strength-ok { color: var(--ok); }
+.functional-strength-warn { color: var(--warn); }
+.functional-strength-danger { color: var(--conflict); }
+.functional-strength-neutral { color: var(--muted); }
+
+.functional-scope {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 0.83rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
