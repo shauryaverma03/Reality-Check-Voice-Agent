@@ -185,13 +185,13 @@ body {
   }
 }
 
-/* Rises from the bottom during a theme/palette switch (see theme.js). Fully
-   collapsed and non-interactive at rest. */
+/* Expands as a circle from the clicked control during a theme/palette
+   switch (see theme.js). Fully collapsed and non-interactive at rest. */
 .theme-transition-overlay {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  clip-path: inset(100% 0 0 0);
+  clip-path: circle(0px at 50% 0%);
   opacity: 0;
   pointer-events: none;
 }
@@ -202,103 +202,188 @@ body {
   flex-direction: column;
 }
 
+/* ---------------------------------------------------------------------- */
+/* Header — sticky, translucent, with a hairline rather than a hard edge   */
+/* ---------------------------------------------------------------------- */
+
 .app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
   background: var(--brand);
   color: var(--on-brand);
-  transition: background-color var(--transition-slow, 500ms);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  transition: background-color var(--transition-slow, 500ms), box-shadow var(--transition);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04), 0 6px 20px -12px rgba(0, 0, 0, 0.4);
+}
+/* Progressive enhancement — plain solid background stays the fallback. */
+@supports (backdrop-filter: blur(12px)) or (-webkit-backdrop-filter: blur(12px)) {
+  .app-header {
+    background: color-mix(in srgb, var(--brand) 88%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    backdrop-filter: saturate(180%) blur(14px);
+  }
+}
+
+.app-header-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
 .brand {
-  font-weight: 700;
-  font-size: 1.1rem;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  color: var(--on-brand);
-  text-decoration: none;
-}
-.brand-sub {
-  font-weight: 400;
-  font-size: 0.75rem;
-  opacity: 0.7;
-}
-
-.app-header nav {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-/* Below this, "prove it, don't just say it" + 4 nav items no longer fit on
-   one line without pushing real horizontal overflow (confirmed via
-   scrollWidth > clientWidth) — stack instead of forcing a shrink that
-   breaks text into a narrow, unreadable column. */
-@media (max-width: 640px) {
-  .app-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-  .brand-sub { display: none; }
-  .app-header nav {
-    width: 100%;
-    justify-content: flex-start;
-  }
-}
-.app-header nav a {
-  color: var(--on-brand);
-  text-decoration: none;
-  padding: 6px 14px;
-  border-radius: var(--radius);
-  opacity: 0.75;
-  font-size: 0.9rem;
-}
-.app-header nav a.active,
-.app-header nav a:hover {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.theme-switcher {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 6px;
-  padding-left: 10px;
-  border-left: 1px solid rgba(255, 255, 255, 0.25);
+  gap: 11px;
+  color: var(--on-brand);
+  text-decoration: none;
+  flex-shrink: 0;
+  border-radius: var(--radius);
+  transition: opacity var(--transition-fast);
 }
-.theme-toggle-btn {
-  width: 34px;
-  height: 34px;
+.brand:hover { opacity: 0.88; }
+.brand-mark {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
-  border-radius: var(--radius-full);
-  background: transparent;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   color: var(--on-brand);
-  font-size: 1rem;
-  cursor: pointer;
-  transition: background-color var(--transition-fast), transform var(--transition-fast);
 }
-.theme-toggle-btn:hover { background: rgba(255, 255, 255, 0.15); }
-.theme-toggle-btn:active { transform: scale(0.94); }
-.theme-toggle-btn:focus-visible {
-  outline: 2px solid var(--on-brand);
-  outline-offset: 2px;
+.brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+.brand-name { font-weight: 750; font-size: 1.02rem; letter-spacing: -0.01em; }
+.brand-sub { font-weight: 400; font-size: 0.68rem; opacity: 0.62; letter-spacing: 0.01em; }
+
+.nav-desktop {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+.nav-link {
+  position: relative;
+  color: var(--on-brand);
+  text-decoration: none;
+  padding: 8px 15px;
+  border-radius: var(--radius);
+  opacity: 0.72;
+  font-size: 0.89rem;
+  font-weight: 500;
+  transition: opacity var(--transition-fast), background-color var(--transition-fast);
+}
+.nav-link:hover { opacity: 1; background: rgba(255, 255, 255, 0.1); }
+.nav-link.active { opacity: 1; background: rgba(255, 255, 255, 0.14); font-weight: 600; }
+/* Small underline on the active item — an extra, non-color cue so the
+   current page isn't signalled by a subtle background tint alone. */
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  left: 15px;
+  right: 15px;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--on-brand);
+  opacity: 0.85;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 8px;
+  padding-left: 14px;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+/* ---- Day/night switch — a real switch with a sliding thumb ---- */
+
+.theme-switcher { display: flex; align-items: center; gap: 8px; }
+
+.mode-switch {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  line-height: 0;
+}
+.mode-switch:focus-visible { outline: 2px solid var(--on-brand); outline-offset: 3px; }
+
+.mode-switch-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 60px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  transition: background-color var(--transition);
+}
+.mode-switch:hover .mode-switch-track { background: rgba(0, 0, 0, 0.3); }
+
+.mode-switch-icon {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  color: var(--on-brand);
+  transition: opacity var(--transition);
+}
+/* The icon the thumb is sitting on is the active one, so it's the one that
+   dims — the thumb itself is the highlight. */
+.mode-switch-sun { opacity: 0.45; }
+.mode-switch-moon { opacity: 1; }
+.mode-switch.is-dark .mode-switch-sun { opacity: 1; }
+.mode-switch.is-dark .mode-switch-moon { opacity: 0.45; }
+
+.mode-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--on-brand);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: transform 360ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.mode-switch.is-dark .mode-switch-thumb { transform: translateX(30px); }
+
+/* ---- Palette picker ---- */
+
 .palette-picker { position: relative; }
+.palette-trigger {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 8px 0 7px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--on-brand);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+.palette-trigger:hover { background: rgba(0, 0, 0, 0.3); }
+.palette-trigger:focus-visible { outline: 2px solid var(--on-brand); outline-offset: 3px; }
+.palette-chevron { opacity: 0.7; transition: transform var(--transition-fast); }
+.palette-trigger.is-open .palette-chevron { transform: rotate(180deg); }
+
 .palette-menu {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 10px);
   right: 0;
-  min-width: 168px;
+  min-width: 186px;
   background: var(--surface-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -307,12 +392,20 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  z-index: 50;
-  animation: menuIn var(--transition-fast) ease-out;
+  z-index: 120;
+  animation: menuIn 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 @keyframes menuIn {
-  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.palette-menu-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-subtle);
+  padding: 6px 10px 4px;
 }
 .palette-option {
   display: flex;
@@ -322,32 +415,100 @@ body {
   border: none;
   background: transparent;
   color: var(--text);
-  font-size: 0.85rem;
-  padding: 8px 10px;
+  font-size: 0.86rem;
+  padding: 9px 10px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   text-align: left;
+  transition: background-color var(--transition-fast);
 }
 .palette-option:hover { background: var(--surface-hover); }
-.palette-option.active { font-weight: 600; }
+.palette-option.active { font-weight: 600; background: var(--primary-soft); }
+.palette-option-label { flex: 1; }
 .palette-swatch {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-radius: var(--radius-full);
   flex-shrink: 0;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25);
 }
 .palette-swatch-blue { background: linear-gradient(135deg, #1e3a5f, #6d9bde); }
 .palette-swatch-graphite { background: linear-gradient(135deg, #3f4756, #a7b0c0); }
 .palette-swatch-teal { background: linear-gradient(135deg, #0f766e, #2dd4bf); }
-.palette-check { margin-left: auto; color: var(--primary); }
+.palette-check { color: var(--primary); font-weight: 700; }
+
+/* ---- Mobile nav ---- */
+
+.nav-burger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 34px;
+  height: 30px;
+  padding: 0 6px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+}
+.nav-burger span {
+  display: block;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--on-brand);
+  transition: transform var(--transition), opacity var(--transition-fast);
+}
+.nav-burger.is-open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.nav-burger.is-open span:nth-child(2) { opacity: 0; }
+.nav-burger.is-open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+.nav-burger:focus-visible { outline: 2px solid var(--on-brand); outline-offset: 3px; }
+
+.nav-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 16px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  animation: navDrop 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes navDrop {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.nav-mobile-link {
+  color: var(--on-brand);
+  text-decoration: none;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  opacity: 0.78;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+.nav-mobile-link:hover { opacity: 1; background: rgba(255, 255, 255, 0.1); }
+.nav-mobile-link.active { opacity: 1; background: rgba(255, 255, 255, 0.16); font-weight: 650; }
+
+/* The desktop nav and the burger swap at the width where the brand text +
+   3 links + theme controls stop fitting on one line. */
+@media (max-width: 760px) {
+  .app-header-inner { padding: 10px 16px; gap: 12px; }
+  .nav-desktop { display: none; }
+  .nav-burger { display: flex; }
+  .header-actions { margin-left: auto; padding-left: 0; border-left: none; }
+  .brand-sub { display: none; }
+}
 
 .app-main {
   flex: 1;
-  padding: 24px;
-  max-width: 1100px;
+  padding: 28px 24px 56px;
+  max-width: 1180px;
   width: 100%;
   margin: 0 auto;
+}
+
+@media (max-width: 760px) {
+  .app-main { padding: 20px 16px 44px; }
 }
 
 .card {

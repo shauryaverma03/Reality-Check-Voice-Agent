@@ -1,7 +1,7 @@
 // Theme engine — light/dark mode + 3 color palettes (blue/graphite/teal),
-// persisted to localStorage, with a smooth bottom-up "rise" transition on
-// manual switches. No animation library — plain CSS clip-path transitions,
-// consistent with the rest of this app's plain-CSS styling approach.
+// persisted to localStorage, with a circular-reveal transition that expands
+// from wherever the user clicked. No animation library — plain CSS clip-path
+// transitions, consistent with the rest of this app's plain-CSS approach.
 
 const STORAGE_KEY = 'realitycheck:theme';
 
@@ -67,15 +67,31 @@ export function initTheme() {
   return resolved;
 }
 
+/** Radius needed for a circle centred at (x, y) to cover the whole viewport —
+ * the distance to whichever corner is furthest away. */
+function radiusToCover(x, y) {
+  const { innerWidth: w, innerHeight: h } = window;
+  return Math.max(
+    Math.hypot(x, y),
+    Math.hypot(w - x, y),
+    Math.hypot(x, h - y),
+    Math.hypot(w - x, h - y)
+  );
+}
+
 /**
- * Animated switch: a full-viewport overlay, painted in the NEW theme's
- * color, rises from the bottom (clip-path reveal) to fully cover the
- * screen; the real theme then flips invisibly underneath it; the overlay
- * fades out to reveal the fully-themed real page. Falls back to an
- * instant, un-animated switch under prefers-reduced-motion, or if the
- * overlay element isn't in the DOM for some reason.
+ * Animated switch: a full-viewport overlay painted in the NEW theme's colors
+ * is revealed as a circle expanding from the control the user actually
+ * clicked, so the new theme visibly spreads out from under their finger
+ * rather than sliding in from an unrelated edge. Once it covers the screen
+ * the real theme flips invisibly underneath, then the overlay fades away.
+ *
+ * `origin` is the click point ({ x, y } in viewport coordinates); it falls
+ * back to the top-right corner (where the switcher lives) if a caller
+ * doesn't supply one. Degrades to an instant, un-animated switch under
+ * prefers-reduced-motion or if the overlay element isn't in the DOM.
  */
-export function transitionToTheme({ mode, palette }, { persist = true } = {}) {
+export function transitionToTheme({ mode, palette }, { persist = true, origin = null } = {}) {
   if (persist) storePreference({ mode, palette });
 
   const overlay = document.getElementById('theme-transition-overlay');
@@ -84,10 +100,17 @@ export function transitionToTheme({ mode, palette }, { persist = true } = {}) {
     return;
   }
 
+  const x = origin?.x ?? window.innerWidth - 48;
+  const y = origin?.y ?? 40;
+  const radius = radiusToCover(x, y);
+
   const colors = PALETTE_COLORS[palette]?.[mode] || PALETTE_COLORS.blue.light;
-  overlay.style.background = `linear-gradient(to top, ${colors.bg} 0%, ${colors.bg} 70%, ${colors.surface} 100%)`;
+  // A soft radial wash rather than a flat fill: the new theme's surface
+  // color glows at the origin and settles into its page background, which
+  // reads as the theme spreading outward instead of a plain colour wipe.
+  overlay.style.background = `radial-gradient(circle at ${x}px ${y}px, ${colors.surface} 0%, ${colors.bg} 55%)`;
   overlay.style.transition = 'none';
-  overlay.style.clipPath = 'inset(100% 0 0 0)';
+  overlay.style.clipPath = `circle(0px at ${x}px ${y}px)`;
   overlay.style.opacity = '1';
 
   // Force the browser to commit the starting clip-path before animating —
@@ -95,20 +118,20 @@ export function transitionToTheme({ mode, palette }, { persist = true } = {}) {
   // to the end state instead of transitioning.
   void overlay.offsetHeight;
 
-  overlay.style.transition = 'clip-path 720ms cubic-bezier(0.22, 1, 0.36, 1)';
-  overlay.style.clipPath = 'inset(0% 0 0 0)';
+  overlay.style.transition = 'clip-path 620ms cubic-bezier(0.4, 0, 0.2, 1)';
+  overlay.style.clipPath = `circle(${radius}px at ${x}px ${y}px)`;
 
-  const onRiseDone = () => {
-    overlay.removeEventListener('transitionend', onRiseDone);
+  const onExpandDone = () => {
+    overlay.removeEventListener('transitionend', onExpandDone);
     applyThemeInstant({ mode, palette }); // hidden behind the now-fully-covering overlay
-    overlay.style.transition = 'opacity 220ms ease';
+    overlay.style.transition = 'opacity 260ms ease';
     overlay.style.opacity = '0';
     const onFadeDone = () => {
       overlay.removeEventListener('transitionend', onFadeDone);
       overlay.style.transition = 'none';
-      overlay.style.clipPath = 'inset(100% 0 0 0)'; // reset, ready for next use
+      overlay.style.clipPath = `circle(0px at ${x}px ${y}px)`; // reset, ready for next use
     };
     overlay.addEventListener('transitionend', onFadeDone);
   };
-  overlay.addEventListener('transitionend', onRiseDone);
+  overlay.addEventListener('transitionend', onExpandDone);
 }
