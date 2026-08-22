@@ -514,18 +514,34 @@ body {
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 24px;
+  border-radius: var(--radius-lg);
+  padding: 26px 28px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition), border-color var(--transition), background-color var(--transition);
 }
 .card.narrow {
   max-width: 420px;
   margin: 40px auto;
+}
+@media (max-width: 640px) {
+  /* Edge-to-edge on small screens reads as cramped; keep the card but pull
+     its padding in so content isn't squeezed into a narrow column. */
+  .card { padding: 20px 18px; border-radius: var(--radius); }
 }
 
 .technician-start, .technician-in-progress {
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+/* The job-setup wizard is a single narrow column of decisions, so the whole
+   view (step indicator included) is constrained to match — otherwise a
+   full-width progress bar sits above a centred 640px card and the two read
+   as unrelated elements. */
+.technician-start {
+  max-width: 700px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .technician-layout {
@@ -619,8 +635,12 @@ body {
 .service-card-label { font-weight: 700; font-size: 0.92rem; }
 .service-card-blurb { font-size: 0.78rem; color: var(--muted); line-height: 1.4; }
 
-h1 { font-size: 1.4rem; margin: 0 0 4px; }
-h2 { font-size: 1.05rem; margin: 0 0 10px; }
+h1 { font-size: 1.55rem; margin: 0 0 6px; letter-spacing: -0.02em; line-height: 1.25; }
+h2 { font-size: 1.08rem; margin: 0 0 10px; letter-spacing: -0.01em; }
+h3 { font-size: 0.95rem; margin: 0 0 8px; }
+@media (max-width: 560px) {
+  h1 { font-size: 1.32rem; }
+}
 
 .muted { color: var(--muted); }
 .small { font-size: 0.8rem; }
@@ -629,13 +649,20 @@ h2 { font-size: 1.05rem; margin: 0 0 10px; }
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+/* Header actions wrapping under a long title is fine; them squeezing the
+   title into a two-character column is not. */
+@media (max-width: 640px) {
+  .task-header { flex-direction: column; align-items: stretch; }
+  .task-header .claim-actions { width: 100%; }
 }
 
 .section {
-  margin-top: 22px;
-  padding-top: 18px;
+  margin-top: 26px;
+  padding-top: 22px;
   border-top: 1px solid var(--border);
 }
 .section:first-of-type { margin-top: 20px; }
@@ -649,24 +676,47 @@ h2 { font-size: 1.05rem; margin: 0 0 10px; }
 label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 0.85rem;
-  color: var(--muted);
+  gap: 6px;
+  font-size: 0.83rem;
+  font-weight: 550;
+  color: var(--text-muted);
 }
 
 input[type='text'],
+input[type='date'],
 input:not([type]),
 textarea,
 select {
   font-family: inherit;
-  font-size: 0.95rem;
-  padding: 9px 11px;
+  font-size: 0.93rem;
+  /* 16px on touch keeps iOS Safari from auto-zooming the page when a field
+     is focused, which otherwise breaks the mobile layout mid-entry. */
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text);
   resize: vertical;
   background: var(--surface);
-  transition: background-color var(--transition), border-color var(--transition), color var(--transition);
+  transition: background-color var(--transition), border-color var(--transition),
+    color var(--transition), box-shadow var(--transition-fast);
+}
+input[type='text']:focus,
+input[type='date']:focus,
+input:not([type]):focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+input::placeholder, textarea::placeholder { color: var(--text-subtle); }
+
+@media (max-width: 560px) {
+  input[type='text'],
+  input[type='date'],
+  input:not([type]),
+  textarea,
+  select { font-size: 16px; }
 }
 
 .claim-actions {
@@ -691,31 +741,49 @@ select {
 .inline-filter select { padding: 6px 9px; font-size: 0.85rem; }
 
 .btn {
-  border: none;
+  border: 1px solid transparent;
   border-radius: var(--radius);
-  padding: 9px 16px;
-  font-size: 0.9rem;
+  padding: 10px 17px;
+  font-size: 0.89rem;
+  font-weight: 550;
+  line-height: 1.25;
   cursor: pointer;
-  background: var(--border);
+  background: var(--surface-hover);
   color: var(--text);
   text-decoration: none;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  white-space: nowrap;
+  transition: background-color var(--transition-fast), color var(--transition-fast),
+    transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
 }
-.btn {
-  transition: background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+.btn.primary {
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
-.btn.primary { background: var(--primary); color: var(--on-primary); }
-.btn.primary:hover { background: var(--primary-hover); }
-.btn.secondary { background: var(--surface-hover); color: var(--text); border: 1px solid var(--border); }
-.btn.secondary:hover { background: var(--border); }
+.btn.primary:not(:disabled):hover {
+  background: var(--primary-hover);
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--primary) 60%, transparent);
+  transform: translateY(-1px);
+}
+.btn.secondary { background: var(--surface-hover); color: var(--text); border-color: var(--border); }
+.btn.secondary:not(:disabled):hover { background: var(--surface-elevated); border-color: var(--border-strong); transform: translateY(-1px); }
 .btn.danger { background: var(--danger); color: var(--on-primary); }
-.btn.large { font-size: 1rem; padding: 12px 22px; }
-.btn.tiny { padding: 4px 10px; font-size: 0.78rem; text-decoration: none; display: inline-block; }
-.btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.btn:not(:disabled):active { transform: scale(0.98); }
+.btn.large { font-size: 0.97rem; padding: 13px 24px; border-radius: var(--radius); }
+.btn.tiny { padding: 5px 11px; font-size: 0.78rem; font-weight: 600; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:not(:disabled):active { transform: translateY(0) scale(0.985); }
 .btn:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+/* Full-width primary actions on narrow screens — a 44px-tall target
+   spanning the column is far easier to hit one-handed than an inline pill. */
+@media (max-width: 560px) {
+  .btn.large { width: 100%; }
 }
 
 .photo-grid {
@@ -872,7 +940,14 @@ select {
 .followup-callout-title { font-weight: 700; font-size: 0.92rem; margin-bottom: 4px; }
 .followup-callout-question { margin: 0 0 10px; font-size: 0.9rem; }
 
-.table-scroll { overflow-x: auto; }
+/* Wide tables scroll inside their own container so the page body never
+   scrolls sideways. -webkit-overflow-scrolling keeps the momentum feel on
+   iOS; the shadow hint tells the user there is more to the right. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-sm);
+}
 
 .field-table, .task-table, .agent-run-table {
   width: 100%;
@@ -882,19 +957,24 @@ select {
 }
 .field-table th, .task-table th, .agent-run-table th {
   text-align: left;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-bottom: 2px solid var(--border);
-  color: var(--muted);
-  font-weight: 600;
-  font-size: 0.78rem;
+  color: var(--text-subtle);
+  font-weight: 700;
+  font-size: 0.7rem;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 .field-table td, .task-table td, .agent-run-table td {
-  padding: 8px 10px;
+  padding: 11px 12px;
   border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
+.task-table tbody tr { transition: background-color var(--transition-fast); }
+.task-table tbody tr:hover { background: var(--surface-hover); }
+.field-table tbody tr:last-child td,
+.task-table tbody tr:last-child td { border-bottom: none; }
 .field-key { font-family: 'SF Mono', Menlo, monospace; font-size: 0.85rem; }
 
 .field-status {
@@ -1584,7 +1664,9 @@ select {
 /* Technician job-creation wizard                                          */
 /* ---------------------------------------------------------------------- */
 
-.wizard-card { max-width: 640px; margin: 0 auto; }
+/* Width now comes from .technician-start (which also constrains the step
+   indicator above it) so the two line up as one column. */
+.wizard-card { width: 100%; }
 
 .wizard-progress {
   display: flex;
