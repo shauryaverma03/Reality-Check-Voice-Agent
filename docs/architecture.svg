@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2320" height="1020" viewBox="0 0 2320 1020"><rect x="0" y="0" width="2320" height="1020" fill="#FBFAF7"/>
+
+<defs>
+  <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+    <path d="M0,0 L8,3 L0,6 Z" fill="#182B45"/>
+  </marker>
+  <marker id="arrowMuted" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+    <path d="M0,0 L8,3 L0,6 Z" fill="#5B6472"/>
+  </marker>
+</defs>
+
+<rect x="0" y="0" width="2320" height="6" fill="#E2543F"/>
+<text x="1160.0" y="46" font-family="Helvetica,Arial,sans-serif" font-size="30" font-weight="800" fill="#182B45" text-anchor="middle">RealityCheck — Multimodal Field-Service Verification</text>
+<text x="1160.0" y="74" font-family="Helvetica,Arial,sans-serif" font-size="15.5" fill="#5B6472" text-anchor="middle">Voice + Vision + Manufacturer Manuals (RAG) + Deterministic Verification — the model extracts, it never decides</text>
+<line x1="60" y1="96" x2="2260" y2="96" stroke="#D8D3C6" stroke-width="1.2"/>
+<rect x="50" y="118" width="610" height="300" rx="16" fill="#F1EEE6" opacity="0.55"/>
+<text x="68" y="144" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" letter-spacing="1" fill="#28456B">1 · INPUT</text>
+<rect x="690" y="118" width="660" height="300" rx="16" fill="#F1EEE6" opacity="0.55"/>
+<text x="708" y="144" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" letter-spacing="1" fill="#28456B">2 · EXTRACTION</text>
+<rect x="690" y="440" width="660" height="210" rx="16" fill="#F1EEE6" opacity="0.55"/>
+<text x="708" y="466" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" letter-spacing="1" fill="#28456B">3 · KNOWLEDGE / RAG</text>
+<rect x="1340" y="118" width="480" height="550" rx="16" fill="#F1EEE6" opacity="0.55"/>
+<text x="1358" y="144" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" letter-spacing="1" fill="#28456B">4 · RECONCILE + VERIFY</text>
+<rect x="1850" y="118" width="420" height="632" rx="16" fill="#F1EEE6" opacity="0.55"/>
+<text x="1868" y="144" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" letter-spacing="1" fill="#28456B">5 · DECISION + AUDIT</text>
+<rect x="50" y="755" width="2220" height="145" rx="16" fill="#F1EEE6" opacity="0.55"/>
+<text x="68" y="781" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" letter-spacing="1" fill="#28456B">GRACEFUL DEGRADATION — THE CONSTRAINT YOU DEMO LIVE</text>
+<rect x="80" y="170" width="220" height="110" rx="10" fill="white" stroke="#182B45" stroke-width="1.6"/>
+<text x="94" y="196" font-family="Helvetica,Arial,sans-serif" font-size="16" font-weight="700" fill="#182B45" text-anchor="start">Technician</text>
+<text x="94" y="221" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Voice / text claim</text>
+<text x="94" y="238" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Photos</text>
+<text x="94" y="255" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Machine / unit ID</text>
+<line x1="300" y1="225.0" x2="350" y2="225.0" stroke="#182B45" stroke-width="1.8" marker-end="url(#arrow)"/>
+<rect x="350" y="170" width="230" height="110" rx="10" fill="white" stroke="#182B45" stroke-width="1.6"/>
+<text x="364" y="196" font-family="Helvetica,Arial,sans-serif" font-size="16" font-weight="700" fill="#182B45" text-anchor="start">React + Vite</text>
+<text x="364" y="221" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Technician view</text>
+<text x="364" y="238" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Supervisor dashboard</text>
+<text x="364" y="255" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Knowledge upload</text>
+<line x1="580" y1="225.0" x2="720" y2="225.0" stroke="#182B45" stroke-width="1.8" marker-end="url(#arrow)"/>
+<rect x="647.0" y="204.0" width="150.9" height="16" fill="#FBFAF7"/>
+<text x="650.0" y="217.0" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#5B6472" font-style="italic">REST / JSON / multipart</text>
+<rect x="720" y="155" width="250" height="140" rx="10" fill="white" stroke="#182B45" stroke-width="1.6"/>
+<text x="734" y="181" font-family="Helvetica,Arial,sans-serif" font-size="16.5" font-weight="700" fill="#182B45" text-anchor="start">Node.js + Express API</text>
+<text x="734" y="206" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Central hub — routes to</text>
+<text x="734" y="223" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">extraction, RAG, verifier, DB</text>
+<line x1="970" y1="225.0" x2="1020" y2="225.0" stroke="#182B45" stroke-width="1.8" marker-end="url(#arrow)"/>
+<rect x="1020" y="170" width="240" height="110" rx="10" fill="white" stroke="#182B45" stroke-width="1.6"/>
+<text x="1034" y="196" font-family="Helvetica,Arial,sans-serif" font-size="16" font-weight="700" fill="#182B45" text-anchor="start">Evidence Extraction</text>
+<text x="1034" y="221" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Claude API — voice + vision</text>
+<text x="1034" y="238" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">No key → heuristic fallback</text>
+<line x1="1260" y1="225.0" x2="1310" y2="225.0" stroke="#182B45" stroke-width="1.8" marker-end="url(#arrow)"/>
+<polygon points="1326,185 1475,185 1459,265 1310,265" fill="#EFEAE0" stroke="#28456B" stroke-width="1.4"/>
+<text x="1392.5" y="222.0" font-family="Helvetica,Arial,sans-serif" font-size="13.5" font-weight="700" fill="#182B45" text-anchor="middle">Structured
+Evidence JSON</text>
+<text x="1392" y="272" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#5B6472" text-anchor="middle" font-style="italic">machine_id, pressure, temp…</text>
+<rect x="720" y="480" width="250" height="110" rx="10" fill="white" stroke="#182B45" stroke-width="1.6"/>
+<text x="734" y="506" font-family="Helvetica,Arial,sans-serif" font-size="16" font-weight="700" fill="#182B45" text-anchor="start">Manufacturer Knowledge Base</text>
+<text x="734" y="531" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Private PDF manuals</text>
+<text x="734" y="548" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">uploaded by supervisor</text>
+<line x1="970" y1="535.0" x2="1020" y2="535.0" stroke="#182B45" stroke-width="1.8" marker-end="url(#arrow)"/>
+<rect x="1020" y="480" width="240" height="110" rx="10" fill="white" stroke="#182B45" stroke-width="1.6"/>
+<text x="1034" y="506" font-family="Helvetica,Arial,sans-serif" font-size="16" font-weight="700" fill="#182B45" text-anchor="start">RAG Pipeline (hand-rolled)</text>
+<text x="1034" y="531" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">PDF parse → 800-char chunks</text>
+<text x="1034" y="548" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">(100 overlap) → TF-IDF →</text>
+<text x="1034" y="565" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">cosine similarity</text>
+<line x1="1260" y1="535.0" x2="1310" y2="535.0" stroke="#182B45" stroke-width="1.8" marker-end="url(#arrow)"/>
+<polygon points="1326,495 1475,495 1459,575 1310,575" fill="#EFEAE0" stroke="#28456B" stroke-width="1.4"/>
+<text x="1392.5" y="532.0" font-family="Helvetica,Arial,sans-serif" font-size="13.5" font-weight="700" fill="#182B45" text-anchor="middle">Citation or
+“not found”</text>
+<path d="M1475,225.0 Q1520,260 1560,300" fill="none" stroke="#182B45" stroke-width="1.8" marker-end="url(#arrow)"/>
+<path d="M1475,535.0 Q1520,380 1560,340" fill="none" stroke="#182B45" stroke-width="1.8" marker-end="url(#arrow)"/>
+<rect x="1560" y="190" width="240" height="110" rx="10" fill="white" stroke="#28456B" stroke-width="1.6"/>
+<text x="1574" y="216" font-family="Helvetica,Arial,sans-serif" font-size="16" font-weight="700" fill="#182B45" text-anchor="start">Evidence Reconciliation</text>
+<text x="1574" y="241" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Voice ↔ Photo</text>
+<text x="1574" y="258" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Claim ↔ Manual</text>
+<text x="1574" y="275" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Evidence ↔ Evidence</text>
+<rect x="1560" y="330" width="240" height="52" rx="8" fill="none" stroke="#5B6472" stroke-width="1.2" stroke-dasharray="5,4"/>
+<text x="1680" y="350" font-family="Helvetica,Arial,sans-serif" font-size="10.8" fill="#5B6472" text-anchor="middle" font-style="italic">e.g. RO claim + AC photo</text>
+<text x="1680" y="366" font-family="Helvetica,Arial,sans-serif" font-size="10.8" fill="#5B6472" text-anchor="middle" font-style="italic">→ service mismatch → CONFLICT</text>
+<line x1="1680" y1="300" x2="1680" y2="320" stroke="#182B45" stroke-width="1.8" marker-end="url(#arrow)"/>
+<rect x="1560" y="400" width="240" height="190" rx="12" fill="#182B45" stroke="#182B45" stroke-width="2"/>
+<text x="1680.0" y="430" font-family="Helvetica,Arial,sans-serif" font-size="16.5" font-weight="800" fill="white" text-anchor="middle">DETERMINISTIC</text>
+<text x="1680.0" y="452" font-family="Helvetica,Arial,sans-serif" font-size="16.5" font-weight="800" fill="white" text-anchor="middle">VERIFIER</text>
+<text x="1680.0" y="478" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#D7DEEA" text-anchor="middle">Required fields</text>
+<text x="1680.0" y="495" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#D7DEEA" text-anchor="middle">Tolerance checks</text>
+<text x="1680.0" y="512" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#D7DEEA" text-anchor="middle">Contradiction detection</text>
+<text x="1680.0" y="529" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#D7DEEA" text-anchor="middle">Reference conflicts</text>
+<line x1="1590" y1="558" x2="1770" y2="558" stroke="#E2543F" stroke-width="1"/>
+<text x="1680.0" y="576" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#E2543F" text-anchor="middle">No LLM decision-making</text>
+<line x1="1680" y1="382" x2="1680" y2="400" stroke="#182B45" stroke-width="1.8" marker-end="url(#arrow)"/>
+<rect x="1560" y="605" width="240" height="30" rx="15" fill="#E4F1EA" stroke="#2F7A55" stroke-width="1"/>
+<text x="1680" y="625" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#2F7A55" text-anchor="middle">27 / 27 eval cases passing</text>
+<rect x="1880" y="195" width="360" height="80" rx="10" fill="#E4F1EA" stroke="#2F7A55" stroke-width="1.6"/>
+<text x="1896" y="221" font-family="Helvetica,Arial,sans-serif" font-size="14.5" font-weight="800" fill="#2F7A55">VERIFIED</text>
+<text x="1896" y="241" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#5B6472">All fields matched,</text>
+<text x="1896" y="257" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#5B6472">in range, reference-backed</text>
+<path d="M1800,225 Q1845,231.5 1880,235" fill="none" stroke="#5B6472" stroke-width="1.8" marker-end="url(#arrowMuted)"/>
+<rect x="1880" y="300" width="360" height="80" rx="10" fill="#FBF1DC" stroke="#A8791F" stroke-width="1.6"/>
+<text x="1896" y="326" font-family="Helvetica,Arial,sans-serif" font-size="14.5" font-weight="800" fill="#A8791F">NEED MORE EVIDENCE</text>
+<text x="1896" y="346" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#5B6472">A required field</text>
+<text x="1896" y="362" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#5B6472">was never submitted</text>
+<path d="M1800,300 Q1845,326.0 1880,340" fill="none" stroke="#5B6472" stroke-width="1.8" marker-end="url(#arrowMuted)"/>
+<rect x="1880" y="405" width="360" height="80" rx="10" fill="#E6EEF8" stroke="#2D5FA0" stroke-width="1.6"/>
+<text x="1896" y="431" font-family="Helvetica,Arial,sans-serif" font-size="14.5" font-weight="800" fill="#2D5FA0">INSUFFICIENT EVIDENCE</text>
+<text x="1896" y="451" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#5B6472">Manual doesn't back a</text>
+<text x="1896" y="467" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#5B6472">reference-required field</text>
+<path d="M1800,445 Q1845,445.0 1880,445" fill="none" stroke="#5B6472" stroke-width="1.8" marker-end="url(#arrowMuted)"/>
+<rect x="1880" y="510" width="360" height="80" rx="10" fill="#FBEAE7" stroke="#C1402C" stroke-width="1.6"/>
+<text x="1896" y="536" font-family="Helvetica,Arial,sans-serif" font-size="14.5" font-weight="800" fill="#C1402C">CONFLICT — HUMAN REVIEW</text>
+<text x="1896" y="556" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#5B6472">Sources disagree, or a</text>
+<text x="1896" y="572" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#5B6472">reading is out of spec</text>
+<path d="M1800,520 Q1845,539.5 1880,550" fill="none" stroke="#5B6472" stroke-width="1.8" marker-end="url(#arrowMuted)"/>
+<rect x="1880" y="610" width="360" height="120" rx="10" fill="white" stroke="#28456B" stroke-width="1.6"/>
+<text x="1894" y="636" font-family="Helvetica,Arial,sans-serif" font-size="16" font-weight="700" fill="#182B45" text-anchor="start">SQLite — Audit Trail</text>
+<text x="1894" y="661" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">tasks · evidence · claims</text>
+<text x="1894" y="678" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">checklists · verification_results</text>
+<text x="1894" y="695" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">agent_runs (every step logged)</text>
+<path d="M1800,560 Q1845,630 1880,660" fill="none" stroke="#5B6472" stroke-width="1.8" marker-end="url(#arrowMuted)"/>
+<rect x="1842" y="609" width="81.6" height="16" fill="#FBFAF7"/>
+<text x="1845" y="622" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#5B6472" font-style="italic">audit result</text>
+<text x="720" y="368" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#5B6472" font-style="italic">Every claim, evidence upload, and verify call is also written to SQLite (not drawn, to keep this readable)</text>
+<rect x="90" y="780" width="300" height="80" rx="10" fill="white" stroke="#5B6472" stroke-width="1.6"/>
+<text x="104" y="806" font-family="Helvetica,Arial,sans-serif" font-size="16" font-weight="700" fill="#182B45" text-anchor="start">Claude / API unavailable</text>
+<text x="104" y="831" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Timeout, rate limit,</text>
+<text x="104" y="848" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">or no key set</text>
+<line x1="390" y1="820" x2="460" y2="820" stroke="#182B45" stroke-width="1.8" marker-end="url(#arrow)"/>
+<rect x="460" y="780" width="340" height="80" rx="10" fill="white" stroke="#5B6472" stroke-width="1.6"/>
+<text x="474" y="806" font-family="Helvetica,Arial,sans-serif" font-size="16" font-weight="700" fill="#182B45" text-anchor="start">Heuristic / presence-only fallback</text>
+<text x="474" y="831" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Regex claim parser ·</text>
+<text x="474" y="848" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">photos accepted, unread</text>
+<line x1="800" y1="820" x2="870" y2="820" stroke="#182B45" stroke-width="1.8" marker-end="url(#arrow)"/>
+<rect x="870" y="780" width="300" height="80" rx="10" fill="white" stroke="#5B6472" stroke-width="1.6"/>
+<text x="884" y="806" font-family="Helvetica,Arial,sans-serif" font-size="16" font-weight="700" fill="#182B45" text-anchor="start">Same deterministic verifier</text>
+<text x="884" y="831" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Missing fields simply</text>
+<text x="884" y="848" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">read as MISSING</text>
+<line x1="1170" y1="820" x2="1260" y2="820" stroke="#5B6472" stroke-width="1.8" stroke-dasharray="7,5" marker-end="url(#arrowMuted)"/>
+<rect x="1260" y="780" width="300" height="80" rx="10" fill="white" stroke="#5B6472" stroke-width="1.6"/>
+<text x="1274" y="806" font-family="Helvetica,Arial,sans-serif" font-size="16" font-weight="700" fill="#182B45" text-anchor="start">Uncertain → human review</text>
+<text x="1274" y="831" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">Never crashes,</text>
+<text x="1274" y="848" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#5B6472" text-anchor="start">never guesses</text>
+<text x="1650" y="810" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#5B6472" font-style="italic">Same code path as a technician who simply forgot a reading —</text>
+<text x="1650" y="830" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#5B6472" font-style="italic">no special-case error handling needed.</text>
+<text x="90" y="950" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#182B45">Legend</text>
+<line x1="90" y1="972" x2="130" y2="972" stroke="#182B45" stroke-width="1.8" marker-end="url(#arrow)"/>
+<text x="140" y="976" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#5B6472">Data flow</text>
+<line x1="320" y1="972" x2="360" y2="972" stroke="#5B6472" stroke-width="1.8" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+<text x="370" y="976" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#5B6472">Fallback / degraded path</text>
+<rect x="90" y="989" width="16" height="16" rx="3" fill="#E4F1EA" stroke="#2F7A55" stroke-width="1.4"/>
+<text x="112" y="1002" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#5B6472">Verified</text>
+<rect x="370" y="989" width="16" height="16" rx="3" fill="#FBF1DC" stroke="#A8791F" stroke-width="1.4"/>
+<text x="392" y="1002" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#5B6472">Need More Evidence</text>
+<rect x="650" y="989" width="16" height="16" rx="3" fill="#E6EEF8" stroke="#2D5FA0" stroke-width="1.4"/>
+<text x="672" y="1002" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#5B6472">Insufficient Evidence</text>
+<rect x="930" y="989" width="16" height="16" rx="3" fill="#FBEAE7" stroke="#C1402C" stroke-width="1.4"/>
+<text x="952" y="1002" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#5B6472">Conflict — Human Review</text></svg>
