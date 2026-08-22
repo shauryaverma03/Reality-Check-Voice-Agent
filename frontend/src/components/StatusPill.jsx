@@ -2,6 +2,7 @@ const LABELS = {
   pending: 'Pending',
   verified: 'Verified',
   need_more_evidence: 'Need More Evidence',
+  image_unclear: 'Image Unclear',
   conflict: 'Conflict — Human Review',
   insufficient_evidence: 'Insufficient Evidence',
 };

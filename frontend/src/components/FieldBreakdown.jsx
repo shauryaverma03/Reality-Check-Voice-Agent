@@ -7,6 +7,7 @@ const STATUS_LABELS = {
   contradiction: 'Contradiction',
   out_of_range: 'Out of range',
   insufficient_evidence: 'Insufficient evidence',
+  unclear: 'Image unclear',
 };
 
 export default function FieldBreakdown({ fields }) {
@@ -33,6 +34,7 @@ export default function FieldBreakdown({ fields }) {
                 <span className={`field-status field-status-${f.status}`}>
                   {STATUS_LABELS[f.status] || f.status}
                 </span>
+                {f.mismatch && <span className="field-status field-status-mismatch">Claim ≠ Evidence</span>}
               </td>
               <td>
                 {f.sources && f.sources.length > 0 ? (

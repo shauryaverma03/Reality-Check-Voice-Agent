@@ -63,4 +63,10 @@ export const api = {
     return request('/knowledge', { method: 'POST', body: form });
   },
   listKnowledgeDocs: (taskType) => request(`/knowledge${toQuery({ task_type: taskType })}`),
+
+  // Supervisor reporting — daily (pass `date`) or custom range (`from`/`to`).
+  getReportSummary: (params) => request(`/reports/summary${toQuery(params)}`),
+  // Not a `request()` call — this is downloaded directly by the browser via
+  // a plain link/window.open, not fetched+parsed as JSON.
+  reportCsvUrl: (params) => `${API}/reports/export.csv${toQuery(params)}`,
 };

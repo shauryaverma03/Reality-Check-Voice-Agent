@@ -11,6 +11,7 @@ import { citationLabel, citationEquipment } from '../citations.js';
 const DECISION_ICON = {
   VERIFIED: '✓',
   NEED_MORE_EVIDENCE: '⚠',
+  IMAGE_UNCLEAR: '🖼',
   CONFLICT_HUMAN_REVIEW: '⚠',
   INSUFFICIENT_EVIDENCE: '?',
 };
@@ -30,9 +31,22 @@ const SERVICE_INFO = {
 };
 const TASK_TYPE_LABELS = Object.fromEntries(Object.entries(SERVICE_INFO).map(([k, v]) => [k, v.label]));
 
+// Defect/problem options shown per service in Step 1 of the job wizard.
+// Frontend-only config (not round-tripped through the backend/checklist) —
+// these are just what the technician is reporting as the reason for the
+// visit, not a checklist field the verifier evaluates against evidence.
+// Deliberately scoped per service so an AC defect never shows for an RO job.
+const DEFECTS_BY_SERVICE = {
+  'ac-service': ['Low cooling', 'Water leakage', 'Unusual noise', 'Not turning on', 'Gas leakage / low gas', 'Routine maintenance'],
+  'ro-service': ['Low water flow', 'Bad taste / odor', 'Leakage', 'Filter change due', 'Not turning on', 'Routine maintenance'],
+  'fridge-service': ['Not cooling', 'Excessive frost / ice buildup', 'Unusual noise', 'Water leakage', 'Door seal issue', 'Routine maintenance'],
+  'washer-service': ['Not draining', 'Excessive vibration', 'Error code displayed', 'Not spinning', 'Water leakage', 'Routine maintenance'],
+};
+
 const DECISION_TO_STATUS = {
   VERIFIED: 'verified',
   NEED_MORE_EVIDENCE: 'need_more_evidence',
+  IMAGE_UNCLEAR: 'image_unclear',
   CONFLICT_HUMAN_REVIEW: 'conflict',
   INSUFFICIENT_EVIDENCE: 'insufficient_evidence',
 };
@@ -53,8 +67,17 @@ export default function TechnicianView() {
   // Honors a ?service=ro-service style link (e.g. from the home page's
   // service cards) as the initial selection; falls back to AC otherwise.
   const [taskType, setTaskType] = useState(() => searchParams.get('service') || 'ac-service');
+  const [defect, setDefect] = useState('');
   const [unitId, setUnitId] = useState('');
+  const [machineModel, setMachineModel] = useState('');
   const [technician, setTechnician] = useState('');
+
+  // Job-creation wizard, shown before a task exists. 0 = service+defect,
+  // 1 = machine info, 2 = summary/confirm. Reset to 0 whenever taskType
+  // changes so switching service mid-wizard doesn't carry over an
+  // unrelated defect on the next step.
+  const [wizardStep, setWizardStep] = useState(0);
+
   const [task, setTask] = useState(null);
   const [checklist, setChecklist] = useState(null); // the fields for `task`'s task_type
   const [creating, setCreating] = useState(false);
@@ -123,12 +146,20 @@ export default function TechnicianView() {
           ? 3
           : 2;
 
+  const defectOptions = DEFECTS_BY_SERVICE[taskType] || [];
+
   async function handleCreateTask(e) {
     e.preventDefault();
     setError(null);
     setCreating(true);
     try {
-      const created = await api.createTask({ task_type: taskType, unit_id: unitId, technician });
+      const created = await api.createTask({
+        task_type: taskType,
+        unit_id: unitId,
+        technician,
+        defect,
+        machine_model: machineModel,
+      });
       setTask(created);
       setUploaded({});
       setClaimSubmitted(false);
@@ -138,7 +169,7 @@ export default function TechnicianView() {
       setMessages([]);
       pushMessage(
         'system',
-        `New ${TASK_TYPE_LABELS[created.task_type] || created.task_type} job started for unit ${unitId || '(unspecified)'}. Speak or type your claim, then upload the required evidence.`
+        `New ${TASK_TYPE_LABELS[created.task_type] || created.task_type} job started for unit ${unitId || '(unspecified)'}${defect ? ` — ${defect}` : ''}. Speak or type your claim, then upload the required evidence.`
       );
     } catch (err) {
       setError(err.message);
@@ -218,9 +249,12 @@ export default function TechnicianView() {
       setUploaded((prev) => ({ ...prev, [role]: evidence }));
       const label = evidenceFields.find((f) => f.key === role)?.label || role;
       const extractedKeys = Object.keys(evidence.extracted || {});
+      const unreadable = evidence.quality && evidence.quality.readable === false;
       pushMessage(
         'system',
-        `Uploaded ${label} ✅${extractedKeys.length ? ` (read: ${extractedKeys.map((k) => `${k}=${evidence.extracted[k]}`).join(', ')})` : ''}`
+        unreadable
+          ? `Uploaded ${label}, but it looks unusable: ${(evidence.quality.issue || 'unclear').replace(/_/g, ' ')}. You may want to replace it before verifying.`
+          : `Uploaded ${label} ✅${extractedKeys.length ? ` (read: ${extractedKeys.map((k) => `${k}=${evidence.extracted[k]}`).join(', ')})` : ''}`
       );
     } catch (err) {
       setError(err.message);
@@ -250,6 +284,8 @@ export default function TechnicianView() {
         pushMessage('system', `✅ VERIFIED — evidence score ${result.evidence_score}/100.`);
       } else if (result.decision === 'NEED_MORE_EVIDENCE') {
         pushMessage('system', `❓ ${result.follow_up_question}`);
+      } else if (result.decision === 'IMAGE_UNCLEAR') {
+        pushMessage('system', `🖼 IMAGE UNCLEAR — ${result.follow_up_question}`);
       } else if (result.decision === 'INSUFFICIENT_EVIDENCE') {
         pushMessage('system', `📖 INSUFFICIENT EVIDENCE — ${result.follow_up_question}`);
       } else {
@@ -257,6 +293,10 @@ export default function TechnicianView() {
         pushMessage('system', `🚩 CONFLICT — needs human review. ${bad.map((f) => f.message).join(' ')}`);
       }
     } catch (err) {
+      // The backend enforces "a claim is required" itself (never just a
+      // frontend gate) — if the button-disabled state below is ever
+      // bypassed, this is the real backstop, and its message is already
+      // technician-facing (see routes/verifications.js).
       setError(err.message);
       pushMessage('system', `Verification failed: ${err.message}`);
     } finally {
@@ -268,44 +308,126 @@ export default function TechnicianView() {
     return (
       <div className="technician-start">
         <StepIndicator done={[false, false, false, false, false]} currentIndex={0} />
-        <div className="card">
+        <div className="card wizard-card">
           <h1>Start a job</h1>
-          <p className="muted">Pick a service, speak your claim, upload evidence, get verified.</p>
+          <div className="wizard-progress" aria-label="Job setup progress">
+            {['Service & defect', 'Machine info', 'Summary'].map((label, i) => (
+              <span key={label} className={`wizard-step-chip${i === wizardStep ? ' active' : i < wizardStep ? ' done' : ''}`}>
+                {i < wizardStep ? '✓' : i + 1}. {label}
+              </span>
+            ))}
+          </div>
 
-          <form onSubmit={handleCreateTask} className="form">
-            <div className="service-card-grid" data-tour="service-select" role="radiogroup" aria-label="Service type">
-              {(checklists.length > 0 ? checklists.map((c) => c.task_type) : Object.keys(SERVICE_INFO)).map((t) => {
-                const info = SERVICE_INFO[t] || { icon: '🔧', label: t, blurb: '' };
-                return (
+          {wizardStep === 0 && (
+            <div className="wizard-panel">
+              <h2>What type of job are you going to perform?</h2>
+              <div className="service-card-grid" data-tour="service-select" role="radiogroup" aria-label="Service type">
+                {(checklists.length > 0 ? checklists.map((c) => c.task_type) : Object.keys(SERVICE_INFO)).map((t) => {
+                  const info = SERVICE_INFO[t] || { icon: '🔧', label: t, blurb: '' };
+                  return (
+                    <button
+                      type="button"
+                      key={t}
+                      role="radio"
+                      aria-checked={taskType === t}
+                      className={`service-card${taskType === t ? ' active' : ''}`}
+                      onClick={() => {
+                        setTaskType(t);
+                        setDefect('');
+                      }}
+                    >
+                      <span className="service-card-icon" aria-hidden="true">{info.icon}</span>
+                      <span className="service-card-label">{info.label}</span>
+                      <span className="service-card-blurb">{info.blurb}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <h2>What is the defect / problem?</h2>
+              <div className="defect-grid" role="radiogroup" aria-label="Defect">
+                {defectOptions.map((d) => (
                   <button
                     type="button"
-                    key={t}
+                    key={d}
                     role="radio"
-                    aria-checked={taskType === t}
-                    className={`service-card${taskType === t ? ' active' : ''}`}
-                    onClick={() => setTaskType(t)}
+                    aria-checked={defect === d}
+                    className={`defect-chip${defect === d ? ' active' : ''}`}
+                    onClick={() => setDefect(d)}
                   >
-                    <span className="service-card-icon" aria-hidden="true">{info.icon}</span>
-                    <span className="service-card-label">{info.label}</span>
-                    <span className="service-card-blurb">{info.blurb}</span>
+                    {d}
                   </button>
-                );
-              })}
-            </div>
+                ))}
+              </div>
 
-            <label>
-              Unit / machine ID
-              <input value={unitId} onChange={(e) => setUnitId(e.target.value)} placeholder="e.g. 27" />
-            </label>
-            <label>
-              Technician name
-              <input value={technician} onChange={(e) => setTechnician(e.target.value)} placeholder="e.g. Rakesh" />
-            </label>
-            {error && <p className="error-text">{error}</p>}
-            <button type="submit" className="btn primary large" disabled={creating}>
-              {creating ? 'Starting…' : 'Start Job'}
-            </button>
-          </form>
+              <button
+                type="button"
+                className="btn primary large"
+                disabled={!taskType || !defect}
+                onClick={() => setWizardStep(1)}
+              >
+                Continue
+              </button>
+            </div>
+          )}
+
+          {wizardStep === 1 && (
+            <div className="wizard-panel">
+              <h2>Machine information</h2>
+              <label>
+                <span>Machine / unit ID <span className="required-badge">Required</span></span>
+                <input value={unitId} onChange={(e) => setUnitId(e.target.value)} placeholder="e.g. 27" />
+              </label>
+              <label>
+                <span>Machine name / model</span>
+                <input value={machineModel} onChange={(e) => setMachineModel(e.target.value)} placeholder="e.g. Voltas Split AC 1.5T" />
+              </label>
+              <label>
+                <span>Technician name <span className="required-badge">Required</span></span>
+                <input value={technician} onChange={(e) => setTechnician(e.target.value)} placeholder="e.g. Rakesh" />
+              </label>
+              <div className="wizard-nav">
+                <button type="button" className="btn secondary" onClick={() => setWizardStep(0)}>
+                  ← Back
+                </button>
+                <button
+                  type="button"
+                  className="btn primary large"
+                  disabled={!unitId.trim() || !technician.trim()}
+                  onClick={() => setWizardStep(2)}
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          )}
+
+          {wizardStep === 2 && (
+            <form onSubmit={handleCreateTask} className="wizard-panel">
+              <h2>Job summary</h2>
+              <dl className="job-summary">
+                <dt>Job type</dt>
+                <dd>{SERVICE_INFO[taskType]?.icon} {TASK_TYPE_LABELS[taskType] || taskType}</dd>
+                <dt>Defect</dt>
+                <dd>{defect || '—'}</dd>
+                <dt>Machine ID</dt>
+                <dd>{unitId || '—'}</dd>
+                <dt>Machine name / model</dt>
+                <dd>{machineModel || '—'}</dd>
+                <dt>Technician</dt>
+                <dd>{technician || '—'}</dd>
+              </dl>
+              {error && <p className="error-text">{error}</p>}
+              <div className="wizard-nav">
+                <button type="button" className="btn secondary" onClick={() => setWizardStep(1)}>
+                  ← Back
+                </button>
+                <button type="submit" className="btn primary large" disabled={creating}>
+                  {creating ? 'Starting…' : 'Start Job'}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     );
@@ -320,16 +442,20 @@ export default function TechnicianView() {
             <div>
               <h1>Job — Unit {task.unit_id || '—'}</h1>
               <p className="muted">
-                {SERVICE_INFO[task.task_type]?.icon} {TASK_TYPE_LABELS[task.task_type] || task.task_type} · Technician:{' '}
-                {task.technician || '—'} · Task ID: {task.id.slice(0, 8)}
+                {SERVICE_INFO[task.task_type]?.icon} {TASK_TYPE_LABELS[task.task_type] || task.task_type}
+                {task.defect ? ` · ${task.defect}` : ''} · Technician: {task.technician || '—'} · Task ID: {task.id.slice(0, 8)}
               </p>
+              {task.machine_model && <p className="muted small">Machine: {task.machine_model}</p>}
             </div>
             <StatusPill status={task.status} />
           </div>
 
           <section className="section" ref={claimSectionRef} data-tour="claim-section">
-            <h2>1. State your claim</h2>
+            <h2>1. State your claim <span className="required-badge">Required</span></h2>
             <p className="muted small">Tell RealityCheck what you did — task, machine ID, and any readings.</p>
+            {!claimSubmitted && (
+              <p className="follow-up">A claim is required before continuing to verification.</p>
+            )}
             <form onSubmit={handleSubmitClaim} className="claim-form">
               <textarea
                 value={claimText}
@@ -361,45 +487,60 @@ export default function TechnicianView() {
           <section className="section" ref={evidenceSectionRef} data-tour="evidence-section">
             <h2>2. Provide evidence</h2>
             <div className="photo-grid">
-              {evidenceFields.map(({ key, label, type, required }) => (
-                <div key={key} className={`evidence-card${uploaded[key] ? ' evidence-card-done' : ''}`}>
-                  <div className="evidence-card-top">
-                    <span className="evidence-card-label">{label}</span>
-                    <span className={`evidence-req-badge ${required ? 'required' : 'optional'}`}>
-                      {required ? 'Required' : 'Optional'}
-                    </span>
-                  </div>
-                  {uploaded[key] ? (
-                    <div className="evidence-card-uploaded">
-                      <span className="upload-check">✓ Uploaded</span>
-                      <button type="button" className="btn tiny secondary" onClick={() => handleRemoveEvidence(key)}>
-                        Replace
-                      </button>
+              {evidenceFields.map(({ key, label, type, required }) => {
+                const item = uploaded[key];
+                const unclear = item?.quality && item.quality.readable === false;
+                return (
+                  <div key={key} className={`evidence-card${item ? (unclear ? ' evidence-card-unclear' : ' evidence-card-done') : ''}`}>
+                    <div className="evidence-card-top">
+                      <span className="evidence-card-label">{label}</span>
+                      <span className={`evidence-req-badge ${required ? 'required' : 'optional'}`}>
+                        {required ? 'Required' : 'Optional'}
+                      </span>
                     </div>
-                  ) : (
-                    <label className="evidence-upload-btn">
-                      {uploadingRole === key ? 'Uploading…' : `Upload ${type === 'document' ? 'file' : 'photo'}`}
-                      <input
-                        type="file"
-                        accept={type === 'document' ? 'application/pdf,image/*,.doc,.docx' : 'image/*'}
-                        disabled={uploadingRole === key}
-                        onChange={(e) => e.target.files[0] && handleUploadEvidence(key, e.target.files[0])}
-                      />
-                    </label>
-                  )}
-                  {!uploaded[key] && required && uploadingRole !== key && (
-                    <span className="evidence-missing-note">⚠ Required evidence missing</span>
-                  )}
-                </div>
-              ))}
+                    {item ? (
+                      <div className="evidence-card-uploaded">
+                        <span className={unclear ? 'upload-check upload-check-unclear' : 'upload-check'}>
+                          {unclear ? `⚠ Unusable: ${(item.quality.issue || 'unclear').replace(/_/g, ' ')}` : '✓ Uploaded'}
+                        </span>
+                        <button type="button" className="btn tiny secondary" onClick={() => handleRemoveEvidence(key)}>
+                          Replace
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="evidence-upload-btn">
+                        {uploadingRole === key ? 'Uploading…' : `Upload ${type === 'document' ? 'file' : 'photo'}`}
+                        <input
+                          type="file"
+                          accept={type === 'document' ? 'application/pdf,image/*,.doc,.docx' : 'image/*'}
+                          disabled={uploadingRole === key}
+                          onChange={(e) => e.target.files[0] && handleUploadEvidence(key, e.target.files[0])}
+                        />
+                      </label>
+                    )}
+                    {!item && required && uploadingRole !== key && (
+                      <span className="evidence-missing-note">⚠ Required evidence missing</span>
+                    )}
+                    {unclear && (
+                      <span className="evidence-missing-note">Image is unclear or insufficient to verify — please re-upload a clearer photo.</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </section>
 
           <section className="section" data-tour="verify-section">
             <h2>3. Run verification</h2>
-            <button className="btn primary large" onClick={handleVerify} disabled={verifying}>
+            <button
+              className="btn primary large"
+              onClick={handleVerify}
+              disabled={verifying || !claimSubmitted}
+              title={!claimSubmitted ? 'State Your Claim is required before continuing.' : undefined}
+            >
               {verifying ? 'Verifying…' : 'Run Verification'}
             </button>
+            {!claimSubmitted && <p className="muted small">Submit your claim above first — verification is blocked until then.</p>}
             {verification && (
               <div className={`status-card status-card-${verification.decision}`}>
                 <div className="result-heading">
@@ -422,7 +563,17 @@ export default function TechnicianView() {
                     }}
                   />
                 )}
-                {verification.decision !== 'NEED_MORE_EVIDENCE' && verification.follow_up_question && (
+                {verification.decision === 'IMAGE_UNCLEAR' && verification.follow_up_question && (
+                  <FollowUpCallout
+                    question={verification.follow_up_question}
+                    fields={verification.fields}
+                    onProvideEvidence={() => evidenceSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    onUpdateClaim={() => {
+                      claimSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                  />
+                )}
+                {verification.decision !== 'NEED_MORE_EVIDENCE' && verification.decision !== 'IMAGE_UNCLEAR' && verification.follow_up_question && (
                   <p className="follow-up">
                     {verification.decision === 'INSUFFICIENT_EVIDENCE' ? 'Why: ' : 'Note: '}
                     {verification.follow_up_question}

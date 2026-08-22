@@ -116,7 +116,7 @@ export default function GuidePage() {
           </li>
           <li>
             <strong>Run Verification.</strong> RealityCheck checks everything you've submitted against the service's
-            checklist. You'll get one of four outcomes (see <a href="#decisions">Understanding the decision</a>{' '}
+            checklist. You'll get one of five outcomes (see <a href="#decisions">Understanding the decision</a>{' '}
             below).
           </li>
           <li>
@@ -161,6 +161,30 @@ export default function GuidePage() {
       </section>
 
       <section className="section">
+        <h2>How image evidence is actually checked</h2>
+        <p className="muted">
+          An uploaded photo is never assumed valid just because a file exists. Two separate checks run on it:
+        </p>
+        <ul className="guide-steps">
+          <li>
+            <strong>Is it usable?</strong> When AI is available, the vision model judges readability directly
+            (blurry, dark, overexposed, too low-resolution, or not actually showing the equipment/reading). Without
+            AI, a deterministic fallback checks the file's actual pixel dimensions and size — real structural
+            signals, not a guess — and flags anything implausibly small. Either way, an unusable photo gets marked{' '}
+            <span className="status-pill status-image_unclear">IMAGE UNCLEAR</span> instead of silently counting as
+            valid evidence.
+          </li>
+          <li>
+            <strong>Does it match the claim?</strong> Where AI reads a number or ID off a photo (a gauge, a
+            nameplate), that value is compared against the technician's stated claim using the same cross-source
+            check every other field already goes through — if they disagree beyond measurement noise, it's a
+            contradiction, escalated as CONFLICT — HUMAN REVIEW with the claimed and observed values shown side by
+            side, not silently averaged or ignored.
+          </li>
+        </ul>
+      </section>
+
+      <section className="section">
         <h2>For supervisors</h2>
         <ol className="guide-steps">
           <li>
@@ -199,9 +223,13 @@ export default function GuidePage() {
             <span className="status-pill status-need_more_evidence">NEED MORE EVIDENCE</span>
             <p className="muted">Something required is missing. RealityCheck asks about the first missing field, in checklist order — fix that one thing and re-verify.</p>
           </div>
+          <div className="decision-card decision-image_unclear">
+            <span className="status-pill status-image_unclear">IMAGE UNCLEAR</span>
+            <p className="muted">A required photo was uploaded, but it's too blurry, dark, low-resolution, or off-subject to actually verify anything against. Different from missing — something was submitted, it just can't be trusted yet. Re-upload a clearer photo and re-verify.</p>
+          </div>
           <div className="decision-card decision-conflict">
             <span className="status-pill status-conflict">CONFLICT — HUMAN REVIEW</span>
-            <p className="muted">A reading is outside spec, or two sources disagree by more than measurement noise. This always needs a human to look, not another automatic retry.</p>
+            <p className="muted">A reading is outside spec, or the claim and the evidence disagree by more than measurement noise (e.g. the technician says 120 PSI but the photo shows 180 PSI). This always needs a human to look, not another automatic retry.</p>
           </div>
           <div className="decision-card decision-insufficient_evidence">
             <span className="status-pill status-insufficient_evidence">INSUFFICIENT EVIDENCE</span>
@@ -242,6 +270,10 @@ export default function GuidePage() {
               <tr>
                 <td><span className="field-status field-status-insufficient_evidence">Insufficient evidence</span></td>
                 <td>The value itself looks fine, but no indexed reference document backs it up — see above.</td>
+              </tr>
+              <tr>
+                <td><span className="field-status field-status-unclear">Image unclear</span></td>
+                <td>A photo was uploaded for this field, but it's flagged as unusable (blurry, dark, low-resolution, or off-subject) — evidence exists, but it isn't trustworthy.</td>
               </tr>
             </tbody>
           </table>

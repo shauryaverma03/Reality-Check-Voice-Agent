@@ -588,6 +588,8 @@ select {
   transition: border-color var(--transition), box-shadow var(--transition), background-color var(--transition);
 }
 .evidence-card-done { border-color: var(--success); background: var(--success-soft); }
+.evidence-card-unclear { border-color: var(--warning); background: var(--warning-soft); }
+.upload-check-unclear { color: var(--warn); font-weight: 700; }
 .evidence-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .evidence-card-label { font-weight: 600; font-size: 0.92rem; }
 .evidence-req-badge {
@@ -637,6 +639,7 @@ select {
 .status-pending { background: var(--surface-hover); color: var(--muted); }
 .status-verified { background: var(--success-soft); color: var(--ok); }
 .status-need_more_evidence { background: var(--warning-soft); color: var(--warn); }
+.status-image_unclear { background: var(--warning-soft); color: var(--warn); }
 .status-conflict { background: var(--danger-soft); color: var(--conflict); }
 .status-insufficient_evidence { background: var(--info-soft); color: var(--insufficient); }
 
@@ -657,6 +660,7 @@ select {
 }
 .status-card-VERIFIED { border-left-color: var(--success); }
 .status-card-NEED_MORE_EVIDENCE { border-left-color: var(--warning); }
+.status-card-IMAGE_UNCLEAR { border-left-color: var(--warning); }
 .status-card-CONFLICT_HUMAN_REVIEW { border-left-color: var(--danger); }
 .status-card-INSUFFICIENT_EVIDENCE { border-left-color: var(--info); }
 
@@ -677,6 +681,7 @@ select {
 }
 .result-icon-VERIFIED { background: var(--success-soft); color: var(--ok); }
 .result-icon-NEED_MORE_EVIDENCE { background: var(--warning-soft); color: var(--warn); }
+.result-icon-IMAGE_UNCLEAR { background: var(--warning-soft); color: var(--warn); }
 .result-icon-CONFLICT_HUMAN_REVIEW { background: var(--danger-soft); color: var(--conflict); }
 .result-icon-INSUFFICIENT_EVIDENCE { background: var(--info-soft); color: var(--insufficient); }
 .result-label { font-size: 1.15rem; font-weight: 800; letter-spacing: 0.01em; }
@@ -734,15 +739,21 @@ select {
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 600;
+  margin-right: 4px;
 }
 .field-status-ok { background: var(--success-soft); color: var(--ok); }
 .field-status-borderline { background: var(--warning-soft); color: var(--warn); }
 .field-status-missing { background: var(--surface-hover); color: var(--muted); }
 .field-status-contradiction, .field-status-out_of_range { background: var(--danger-soft); color: var(--conflict); }
 .field-status-insufficient_evidence { background: var(--info-soft); color: var(--insufficient); }
+.field-status-unclear { background: var(--warning-soft); color: var(--warn); }
+.field-status-mismatch { background: var(--danger-soft); color: var(--conflict); }
 
 .source-chip { font-size: 0.82rem; color: var(--text); }
-.field-message { color: var(--muted); font-size: 0.82rem; }
+/* Claimed/Observed-value mismatch messages carry real line breaks
+   ("Claimed value: X\nObserved value: Y\n...") — preserve them instead of
+   collapsing to one run-on line. */
+.field-message { color: var(--muted); font-size: 0.82rem; white-space: pre-line; }
 
 .citations-block {
   margin-top: 14px;
@@ -1117,6 +1128,7 @@ select {
 .decision-card p { margin: 0; font-size: 0.85rem; }
 .decision-verified { border-left-color: var(--ok); }
 .decision-need_more_evidence { border-left-color: var(--warn); }
+.decision-image_unclear { border-left-color: var(--warn); }
 .decision-conflict { border-left-color: var(--conflict); }
 .decision-insufficient_evidence { border-left-color: var(--insufficient); }
 
@@ -1196,6 +1208,33 @@ select {
 .summary-card-warn { border-left-color: var(--warning); }
 .summary-card-conflict { border-left-color: var(--danger); }
 .summary-card-insufficient { border-left-color: var(--info); }
+
+/* ---------------------------------------------------------------------- */
+/* Supervisor reporting (daily / custom range / suspicious jobs)           */
+/* ---------------------------------------------------------------------- */
+
+.report-stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+.report-stat {
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  text-align: center;
+}
+.report-stat-value { font-size: 1.4rem; font-weight: 800; color: var(--text); }
+.report-stat-label { font-size: 0.72rem; color: var(--muted); font-weight: 600; margin-top: 2px; }
+
+.suspicious-block {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.suspicious-block h2 { font-size: 1rem; margin: 0 0 4px; }
 
 .inline-filter {
   display: flex;
@@ -1374,3 +1413,68 @@ select {
 .home-service-icon { font-size: 1.7rem; }
 .home-service-label { font-weight: 700; font-size: 1rem; }
 .home-service-blurb { font-size: 0.83rem; }
+
+/* ---------------------------------------------------------------------- */
+/* Technician job-creation wizard                                          */
+/* ---------------------------------------------------------------------- */
+
+.wizard-card { max-width: 640px; margin: 0 auto; }
+
+.wizard-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 20px;
+}
+.wizard-step-chip {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  background: var(--surface-hover);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.wizard-step-chip.active { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+.wizard-step-chip.done { background: var(--success-soft); color: var(--ok); border-color: var(--success); }
+
+.wizard-panel { display: flex; flex-direction: column; gap: 14px; }
+.wizard-panel h2 { font-size: 1rem; margin: 10px 0 2px; }
+.wizard-nav { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; }
+
+.defect-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.defect-chip {
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+.defect-chip:hover { border-color: var(--primary); }
+.defect-chip.active { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+
+.required-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: var(--warning-soft);
+  color: var(--warn);
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.job-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  margin: 8px 0;
+}
+.job-summary dt { font-weight: 600; color: var(--muted); font-size: 0.85rem; }
+.job-summary dd { margin: 0; font-size: 0.85rem; }

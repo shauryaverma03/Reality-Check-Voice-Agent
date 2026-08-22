@@ -15,6 +15,7 @@ const TASK_TYPE_LABELS = {
 const DECISION_TO_STATUS = {
   VERIFIED: 'verified',
   NEED_MORE_EVIDENCE: 'need_more_evidence',
+  IMAGE_UNCLEAR: 'image_unclear',
   CONFLICT_HUMAN_REVIEW: 'conflict',
   INSUFFICIENT_EVIDENCE: 'insufficient_evidence',
 };
