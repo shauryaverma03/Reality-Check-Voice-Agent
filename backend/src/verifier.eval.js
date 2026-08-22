@@ -359,6 +359,98 @@ testCase({
 });
 
 // ---------------------------------------------------------------------------
+// 28-34. Image evidence verification — quality + claim/image mismatch
+// (matches the manual TEST 1-7 scenarios: an evidence item's `data` is
+// what extraction/extract.js read OFF the image, `quality` is its
+// readability judgment; both feed the same verifyTask/verifyTaskWithReferences
+// used everywhere else — no separate code path)
+// ---------------------------------------------------------------------------
+
+testCase({
+  name: 'TEST 2: claim says pressure 4.2, photo reads 6.0 -> CONFLICT_HUMAN_REVIEW, low score, claimed/observed mismatch message',
+  claim: { data: { machine_id: '27', pressure: 4.2, temperature: 82 } },
+  evidence: [
+    { role: 'serial_photo', data: { machine_id: '27', pressure: 6.0 } }, // gauge reading visible in the photo disagrees with the claim
+    { role: 'final_photo', data: {} },
+  ],
+  expect: {
+    decision: 'CONFLICT_HUMAN_REVIEW',
+    fieldStatuses: { pressure: 'contradiction' },
+  },
+});
+
+testCase({
+  name: 'TEST 3: correct claim + blurry/unreadable serial photo -> IMAGE_UNCLEAR, not a high score',
+  claim: { data: { machine_id: '27', pressure: 4.2, temperature: 82 } },
+  evidence: [
+    { role: 'serial_photo', data: {}, quality: { readable: false, issue: 'blurry', note: 'Vision model flagged this photo as unusable: blurry.' } },
+    { role: 'final_photo', data: {} },
+  ],
+  expect: {
+    decision: 'IMAGE_UNCLEAR',
+    fieldStatuses: { serial_photo: 'unclear' },
+    followUpContains: 'unclear',
+  },
+});
+
+testCase({
+  name: 'TEST 4: photo shows a different machine ID than the claim -> mismatch, CONFLICT_HUMAN_REVIEW',
+  claim: { data: { machine_id: '27', pressure: 4.2, temperature: 82 } },
+  evidence: [
+    { role: 'serial_photo', data: { machine_id: '99' } }, // nameplate in the photo is a different unit
+    { role: 'final_photo', data: {} },
+  ],
+  expect: {
+    decision: 'CONFLICT_HUMAN_REVIEW',
+    fieldStatuses: { machine_id: 'contradiction' },
+  },
+});
+
+testCase({
+  name: 'TEST 5: photo-read pressure is legible but outside the manufacturer range -> OUT_OF_RANGE, not VERIFIED',
+  claim: { data: { machine_id: '27', temperature: 82 } }, // technician doesn't state pressure by voice at all
+  evidence: [
+    { role: 'serial_photo', data: { machine_id: '27', pressure: 5.9 } }, // only source for pressure is the photo reading, and it's out of the 3.8-4.5 range
+    { role: 'final_photo', data: {} },
+  ],
+  expect: {
+    decision: 'CONFLICT_HUMAN_REVIEW',
+    fieldStatuses: { pressure: 'out_of_range' },
+  },
+});
+
+testCase({
+  name: 'photo evidence with no quality signal at all (e.g. a non-image document) never gets marked unclear',
+  claim: { data: { machine_id: '27', pressure: 4.2, temperature: 82 } },
+  evidence: [
+    { role: 'serial_photo', data: { machine_id: '27' }, quality: null },
+    { role: 'final_photo', data: {} },
+  ],
+  expect: { decision: 'VERIFIED', score: 100, fieldStatuses: { serial_photo: 'ok' } },
+});
+
+testCase({
+  name: 'unclear image score is meaningfully reduced, not just non-100',
+  claim: { data: { machine_id: '27', pressure: 4.2, temperature: 82 } },
+  evidence: [
+    { role: 'serial_photo', data: {}, quality: { readable: false, issue: 'dark', note: 'too dark to read' } },
+    { role: 'final_photo', data: {} },
+  ],
+  expect: { decision: 'IMAGE_UNCLEAR' },
+});
+
+testCase({
+  name: 'TEST 7 (deterministic-layer contract): with no claim source at all for a field, verifier reports missing rather than guessing a value — the "never hallucinate" boundary this suite actually checks (AI-unavailable behavior itself is covered live in extract.js, not here, since this file is offline/no-network by design)',
+  claim: { data: { machine_id: '27' } }, // pressure/temperature never stated — nothing to extract, nothing invented
+  evidence: [{ role: 'serial_photo', data: {} }, { role: 'final_photo', data: {} }],
+  expect: {
+    decision: 'NEED_MORE_EVIDENCE',
+    fieldStatuses: { pressure: 'missing', temperature: 'missing' },
+    followUpContains: 'pressure',
+  },
+});
+
+// ---------------------------------------------------------------------------
 // Runner
 // ---------------------------------------------------------------------------
 

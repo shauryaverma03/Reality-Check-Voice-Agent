@@ -65,10 +65,25 @@ router.post('/', (req, res) => {
 
   const checklist = getChecklistForTaskType(task.task_type);
   const claimRow = db.prepare('SELECT * FROM claims WHERE task_id = ? ORDER BY created_at DESC LIMIT 1').get(task.id);
+
+  // "State Your Claim" is mandatory (spec: block progression to verification
+  // without it) — enforced server-side, not just by disabling a frontend
+  // button, since the API is the actual authority on whether a claim exists.
+  if (!claimRow) {
+    return res.status(400).json({
+      error: 'A claim is required before verification. Submit "State Your Claim" for this job first.',
+      code: 'CLAIM_REQUIRED',
+    });
+  }
+
   const evidenceRows = db.prepare('SELECT * FROM evidence WHERE task_id = ?').all(task.id);
 
-  const claim = claimRow ? { data: JSON.parse(claimRow.extracted_json), raw_text: claimRow.raw_text } : null;
-  const evidence = evidenceRows.map((e) => ({ role: e.role, data: JSON.parse(e.extracted_json) }));
+  const claim = { data: JSON.parse(claimRow.extracted_json), raw_text: claimRow.raw_text };
+  const evidence = evidenceRows.map((e) => ({
+    role: e.role,
+    data: JSON.parse(e.extracted_json),
+    quality: e.quality_json ? JSON.parse(e.quality_json) : null,
+  }));
 
   // RAG retrieval — only for fields the checklist says need reference backing.
   // Fetches top-3 (not just top-1) so detectRangeConflict can tell "two

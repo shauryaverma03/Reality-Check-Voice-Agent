@@ -31,7 +31,7 @@ export function serializeClaim(row) {
 }
 
 export function serializeEvidence(row) {
-  return { ...row, extracted: JSON.parse(row.extracted_json) };
+  return { ...row, extracted: JSON.parse(row.extracted_json), quality: JSON.parse(row.quality_json || '{}') };
 }
 
 export function serializeVerification(row) {
@@ -48,6 +48,7 @@ export function serializeVerification(row) {
 export const STATUS_BY_DECISION = {
   VERIFIED: 'verified',
   NEED_MORE_EVIDENCE: 'need_more_evidence',
+  IMAGE_UNCLEAR: 'image_unclear',
   CONFLICT_HUMAN_REVIEW: 'conflict',
   INSUFFICIENT_EVIDENCE: 'insufficient_evidence',
 };

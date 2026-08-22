@@ -13,13 +13,23 @@
 //
 // Output:
 //   {
-//     decision: 'VERIFIED' | 'NEED_MORE_EVIDENCE' | 'CONFLICT_HUMAN_REVIEW',
+//     decision: 'VERIFIED' | 'NEED_MORE_EVIDENCE' | 'IMAGE_UNCLEAR' | 'CONFLICT_HUMAN_REVIEW',
 //     evidence_score: 0-100,
 //     follow_up_question: string | null,
 //     fields: [ { key, type, status, sources, message }, ... ]
 //   }
 //
-// field.status is one of: 'ok' | 'borderline' | 'missing' | 'contradiction' | 'out_of_range'
+// field.status is one of:
+//   'ok' | 'borderline' | 'missing' | 'contradiction' | 'out_of_range' | 'unclear'
+//
+// 'unclear' is specific to 'photo'/'document' fields: evidence WAS uploaded
+// for that role, but extraction (extraction/extract.js, backed by
+// extraction/imageQuality.js when there's no AI call) flagged it as
+// unusable — too blurry/dark/low-resolution/off-subject to actually verify
+// anything against. This is deliberately distinct from 'missing' (nothing
+// uploaded at all): the technician did submit something, it just can't be
+// trusted, which is a different problem with a different fix (re-upload,
+// not "upload for the first time").
 //
 // field.type 'document' behaves exactly like 'photo' here: both are
 // evidence-presence checks satisfied by an evidence item whose `role`
@@ -27,7 +37,15 @@
 // (job card, invoice) — never for reference manuals, which are a separate
 // RAG-retrieved concept layered on top of this verifier, not a field type.
 //
-// verifyTaskWithReferences() (below) wraps this with a 4th decision,
+// A numeric/id 'contradiction' between the voice claim and a value read off
+// an image (or between two evidence items) is flagged with `mismatch: true`
+// on the field result — this IS the "claimed value doesn't match observed
+// evidence" case; it's represented as CONFLICT_HUMAN_REVIEW (not a separate
+// top-level decision) because that's exactly what it already is: sources
+// disagree and a human needs to look, whether the disagreeing sources are
+// two claims, two photos, or a claim and a photo.
+//
+// verifyTaskWithReferences() (below) wraps this with a further decision,
 // INSUFFICIENT_EVIDENCE, for checklist fields flagged `needsReference: true`
 // that RAG couldn't find any supporting knowledge-base chunk for. It never
 // changes verifyTask's own behavior — see its doc comment.
@@ -40,6 +58,7 @@ const SCORE_PENALTY = {
   out_of_range: 20,
   borderline: 5,
   insufficient_evidence: 20,
+  unclear: 20,
 };
 
 /**
@@ -97,15 +116,33 @@ function buildFollowUpQuestion(field) {
   }
 }
 
-/** Shared by 'photo' and 'document' fields: both are satisfied purely by the
- * presence of an evidence item whose `role` matches the field key. */
+/** Shared by 'photo' and 'document' fields: satisfied by the presence of an
+ * evidence item whose `role` matches the field key — AND, now, by that
+ * item's content actually being usable. An evidence item carries an optional
+ * `quality: { readable, issue, note }` (see extraction/extract.js); a photo
+ * that was uploaded but flagged unreadable does NOT satisfy the field —
+ * evidence existing is not the same as evidence being valid. */
 function evaluateEvidencePresenceField(field, evidence) {
-  const present = evidence.some((item) => item.role === field.key);
-  if (!present) {
+  const matching = evidence.filter((item) => item.role === field.key);
+  if (matching.length === 0) {
     return field.required
       ? { key: field.key, type: field.type, status: 'missing', sources: [], message: `Missing required evidence ${field.type === 'document' ? 'document' : 'photo'}: ${field.label}` }
       : { key: field.key, type: field.type, status: 'ok', sources: [], message: null };
   }
+
+  const unclear = matching.find((item) => item.quality && item.quality.readable === false);
+  if (unclear) {
+    const issueLabel = unclear.quality.issue ? unclear.quality.issue.replace(/_/g, ' ') : 'unclear';
+    return {
+      key: field.key,
+      type: field.type,
+      status: 'unclear',
+      sources: [],
+      qualityIssue: unclear.quality.issue,
+      message: `Image is unclear or insufficient to verify ${field.label} (${issueLabel}). ${unclear.quality.note || 'Please re-upload a clearer image.'}`,
+    };
+  }
+
   return { key: field.key, type: field.type, status: 'ok', sources: [{ origin: field.key, value: true }], message: null };
 }
 
@@ -121,12 +158,20 @@ function evaluateIdOrTextField(field, sources) {
 
   if (distinctValues.size > 1) {
     const summary = normalized.map((n) => `${n.origin}="${n.value}"`).join(' vs ');
+    const voiceSource = normalized.find((n) => n.origin === 'voice');
+    // "Claimed X vs observed Y" phrasing whenever the claim itself is one of
+    // the disagreeing sources — the technician's own claim didn't match what
+    // was found in the evidence, not just two evidence items disagreeing.
+    const message = voiceSource
+      ? `Claimed value: "${voiceSource.value}"\nObserved value: ${normalized.filter((n) => n !== voiceSource).map((n) => `"${n.value}" (${n.origin})`).join(', ')}\nThe uploaded evidence does not match the technician's claim for ${field.label}.`
+      : `Conflicting values for ${field.label}: ${summary}`;
     return {
       key: field.key,
       type: field.type,
       status: 'contradiction',
       sources: normalized,
-      message: `Conflicting values for ${field.label}: ${summary}`,
+      mismatch: Boolean(voiceSource),
+      message,
     };
   }
 
@@ -163,12 +208,20 @@ function evaluateNumberField(field, sources) {
 
   if (spread > contradictionThreshold) {
     const summary = parsed.map((p) => `${p.origin}=${p.numericValue}${field.unit || ''}`).join(' vs ');
+    const voiceSource = parsed.find((p) => p.origin === 'voice');
+    // "Claimed X vs observed Y" phrasing whenever the technician's own claim
+    // is one of the disagreeing sources (the DATA_MISMATCH case) — not just
+    // any two sources disagreeing with each other.
+    const message = voiceSource
+      ? `Claimed value: ${voiceSource.numericValue}${field.unit || ''}\nObserved value: ${parsed.filter((p) => p !== voiceSource).map((p) => `${p.numericValue}${field.unit || ''} (${p.origin})`).join(', ')}\nThe uploaded evidence does not match the technician's claim for ${field.label}.`
+      : `Conflicting readings for ${field.label}: ${summary} (spread ${spread.toFixed(2)}${field.unit || ''} exceeds the ${contradictionThreshold.toFixed(2)}${field.unit || ''} measurement-noise allowance)`;
     return {
       key: field.key,
       type: field.type,
       status: 'contradiction',
       sources: parsed,
-      message: `Conflicting readings for ${field.label}: ${summary} (spread ${spread.toFixed(2)}${field.unit || ''} exceeds the ${contradictionThreshold.toFixed(2)}${field.unit || ''} measurement-noise allowance)`,
+      mismatch: Boolean(voiceSource),
+      message,
     };
   }
 
@@ -241,13 +294,20 @@ export function verifyTask({ checklist, claim = null, evidence = [] }) {
   const fields = checklist.map((field) => evaluateField(field, claim, evidence));
 
   const badFields = fields.filter((f) => f.status === 'contradiction' || f.status === 'out_of_range');
+  const unclearFields = fields.filter((f) => f.status === 'unclear');
   const missingFields = fields.filter((f) => f.status === 'missing');
 
   let decision;
   let followUpQuestion = null;
 
+  // Priority: a confirmed problem (contradiction/out-of-range) outranks an
+  // unclear image (we don't know), which outranks something simply not
+  // submitted yet, which outranks a clean pass.
   if (badFields.length > 0) {
     decision = 'CONFLICT_HUMAN_REVIEW';
+  } else if (unclearFields.length > 0) {
+    decision = 'IMAGE_UNCLEAR';
+    followUpQuestion = unclearFields[0].message;
   } else if (missingFields.length > 0) {
     decision = 'NEED_MORE_EVIDENCE';
     // Ask about the first missing field, in checklist order.
@@ -313,15 +373,19 @@ export function verifyTaskWithReferences({ checklist, claim = null, evidence = [
   });
 
   const badFields = fields.filter((f) => f.status === 'contradiction' || f.status === 'out_of_range');
+  const unclearFields = fields.filter((f) => f.status === 'unclear');
   const insufficientFields = fields.filter((f) => f.status === 'insufficient_evidence');
   const missingFields = fields.filter((f) => f.status === 'missing');
 
   let decision;
   let followUpQuestion = base.follow_up_question;
 
-  // Priority: CONFLICT (unchanged) > INSUFFICIENT_EVIDENCE (new) > NEED_MORE_EVIDENCE (unchanged) > VERIFIED
+  // Priority: CONFLICT > IMAGE_UNCLEAR > INSUFFICIENT_EVIDENCE > NEED_MORE_EVIDENCE > VERIFIED
   if (badFields.length > 0) {
     decision = 'CONFLICT_HUMAN_REVIEW';
+  } else if (unclearFields.length > 0) {
+    decision = 'IMAGE_UNCLEAR';
+    followUpQuestion = unclearFields[0].message;
   } else if (insufficientFields.length > 0) {
     decision = 'INSUFFICIENT_EVIDENCE';
     followUpQuestion = insufficientFields[0].message;

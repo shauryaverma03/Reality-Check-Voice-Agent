@@ -40,6 +40,13 @@ addColumnIfMissing("ALTER TABLE knowledge_documents ADD COLUMN source_type TEXT 
 addColumnIfMissing('ALTER TABLE knowledge_documents ADD COLUMN source_url TEXT');
 addColumnIfMissing('ALTER TABLE knowledge_chunks ADD COLUMN page INTEGER');
 addColumnIfMissing('ALTER TABLE knowledge_chunks ADD COLUMN section TEXT');
+// Image-quality signal (readable/issue/note) alongside each evidence item's
+// already-existing extracted_json — see extraction/imageQuality.js.
+addColumnIfMissing("ALTER TABLE evidence ADD COLUMN quality_json TEXT NOT NULL DEFAULT '{}'");
+// Captured during the new multi-step job-creation flow (defect + machine
+// model, alongside the pre-existing unit_id) — see routes/tasks.js.
+addColumnIfMissing('ALTER TABLE tasks ADD COLUMN defect TEXT');
+addColumnIfMissing('ALTER TABLE tasks ADD COLUMN machine_model TEXT');
 
 export function getChecklistForTaskType(taskType) {
   const row = db.prepare('SELECT fields_json FROM checklists WHERE task_type = ?').get(taskType);

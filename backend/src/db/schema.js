@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   task_type TEXT NOT NULL,
   unit_id TEXT,
   technician TEXT,
+  defect TEXT,
+  machine_model TEXT,
   status TEXT NOT NULL DEFAULT 'pending',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -38,6 +40,7 @@ CREATE TABLE IF NOT EXISTS evidence (
   mime_type TEXT,
   extracted_json TEXT NOT NULL DEFAULT '{}',
   extraction_source TEXT NOT NULL DEFAULT 'none',
+  quality_json TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

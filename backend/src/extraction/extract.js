@@ -10,14 +10,18 @@
 // fallback so the pipeline still runs end-to-end without a key:
 //   - claim text  -> a small regex/heuristic parser (checklist-driven, with
 //                    hand-tuned patterns preserved for the original AC keys)
-//   - photo       -> presence-only (no OCR without a vision model); the
-//                    verifier still treats the photo/document field as
-//                    satisfied, it just can't cross-check numeric/id values
+//   - photo       -> no OCR without a vision model, so field values still
+//                    aren't extracted; but a deterministic, dependency-free
+//                    structural check (imageQuality.js: file size + pixel
+//                    dimensions) still runs, so an implausibly tiny or
+//                    low-resolution upload is honestly flagged rather than
+//                    silently accepted as valid evidence
 //
 // Never invents a manufacturer spec or a reference range here — that's the
 // job of rag/retrieve.js, and it stays strictly separate from this module.
 
 import Anthropic from '@anthropic-ai/sdk';
+import { heuristicImageQuality } from './imageQuality.js';
 
 const MODEL = 'claude-sonnet-5';
 
@@ -143,6 +147,19 @@ export async function extractClaimFromVoice({ rawText, checklist }) {
 // Photo extraction
 // ---------------------------------------------------------------------------
 
+// Only these are legitimate quality_issue values — anything else Claude
+// returns (or misspells) is treated the same as "readable: false, issue
+// unspecified" rather than silently accepted as a new, uncontrolled value
+// that the UI/verifier don't know how to render.
+const KNOWN_QUALITY_ISSUES = new Set([
+  'blurry',
+  'dark',
+  'overexposed',
+  'low_resolution',
+  'wrong_subject',
+  'insufficient_detail',
+]);
+
 function buildPhotoSystemPrompt(checklist, role) {
   const lines = checklist
     .filter((f) => f.type === 'id' || f.type === 'number')
@@ -151,19 +168,31 @@ function buildPhotoSystemPrompt(checklist, role) {
         ? `- "${f.key}": number — a ${f.label.toLowerCase()} reading${f.unit ? ` in ${f.unit}` : ''}, if visible`
         : `- "${f.key}": string — a printed ${f.label.toLowerCase()}, if visible`
     );
-  return `You read structured facts off a photo submitted as job evidence by a field technician (this one is tagged "${role}"). Respond with ONLY a JSON object — no prose, no markdown code fences. Include a key only if it is actually legible in the photo; never invent a value. Possible keys:\n${lines.join('\n')}`;
+  return `You read structured facts off a photo submitted as job evidence by a field technician (this one is tagged "${role}"). Respond with ONLY a JSON object — no prose, no markdown code fences.
+
+First assess whether the photo is actually usable as evidence:
+- "readable": true or false — false if the photo is blurry, extremely low resolution, unreadably dark/overexposed, or doesn't show enough of the relevant equipment/readout to check anything against.
+- "quality_issue": one of "blurry" | "dark" | "overexposed" | "low_resolution" | "wrong_subject" | "insufficient_detail", or null if readable is true.
+
+Then, ONLY if actually legible, extract these fields (include a key only if you can confidently read it — never invent or guess a value):
+${lines.join('\n')}
+
+Respond with a single flat JSON object containing "readable", "quality_issue", and any of the extracted keys above that are legible.`;
 }
 
 /**
  * @param {{ buffer: Buffer, mimeType: string, role: string, checklist: Array }} input
- * @returns {Promise<{ data: object, source: 'claude' | 'none' }>}
+ * @returns {Promise<{ data: object, source: 'claude' | 'none', quality: { readable: boolean, issue: string|null, note: string } }>}
  */
 export async function extractEvidenceFromPhoto({ buffer, mimeType, role, checklist }) {
   const anthropic = getClient();
   if (!anthropic) {
-    // No OCR without a vision model — degrade to presence-only. The verifier
-    // still treats this evidence item as satisfying the photo/document field.
-    return { data: {}, source: 'none' };
+    // No vision model to judge readability with — fall back to a
+    // deterministic, dependency-free structural check (file size / pixel
+    // dimensions). Field-value OCR still isn't attempted without AI (no
+    // guessing), but the pipeline no longer blindly treats every upload as
+    // valid evidence regardless of content.
+    return { data: {}, source: 'none', quality: heuristicImageQuality(buffer, mimeType) };
   }
   try {
     const response = await anthropic.messages.create({
@@ -183,9 +212,17 @@ export async function extractEvidenceFromPhoto({ buffer, mimeType, role, checkli
     const textBlock = response.content?.find((b) => b.type === 'text');
     const parsed = parseJSONFromText(textBlock?.text);
     if (!parsed) throw new Error('Claude returned no parseable JSON for photo extraction');
-    return { data: parsed, source: 'claude' };
+
+    const { readable, quality_issue, ...data } = parsed;
+    const issue = KNOWN_QUALITY_ISSUES.has(quality_issue) ? quality_issue : readable === false ? 'insufficient_detail' : null;
+    const quality = {
+      readable: readable !== false, // default to true only if the model didn't explicitly flag it — never assume unusable on a missing field
+      issue,
+      note: issue ? `Vision model flagged this photo as unusable: ${issue.replace(/_/g, ' ')}.` : 'Assessed as readable by the vision model.',
+    };
+    return { data, source: 'claude', quality };
   } catch (err) {
-    console.error('[extraction] Claude photo extraction failed, degrading to presence-only:', err.message);
-    return { data: {}, source: 'none' };
+    console.error('[extraction] Claude photo extraction failed, degrading to heuristic quality check:', err.message);
+    return { data: {}, source: 'none', quality: heuristicImageQuality(buffer, mimeType) };
   }
 }
