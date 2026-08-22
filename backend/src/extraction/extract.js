@@ -52,10 +52,30 @@ function escapeRegExp(s) {
 // ---------------------------------------------------------------------------
 
 // Hand-tuned patterns for the original three AC keys, kept byte-for-byte
-// identical to the pre-multi-service behavior so the AC demo never regresses.
+// identical to the pre-multi-service behavior so the AC demo never regresses
+// — except the ID capture group itself, widened below (see ID_CAPTURE).
+//
+// ID_CAPTURE allows up to 4 leading letters before the digits, not just one:
+// the original `[a-zA-Z]?\d+[a-zA-Z]?` could only ever match a single-letter
+// prefix, so a real-world ID like "RO-2048" or "AC-1024" (2-letter service
+// prefix, the format every service in this project actually uses) silently
+// failed to match at all — the exact root cause of a reported bug where a
+// technician's claim clearly named the machine but extraction still
+// produced nothing, making the field look never-provided. `[-\s]?` also
+// tolerates the hyphen or space a real ID often carries between the prefix
+// and the number ("RO-2048", "RO 2048"), not just digits butted directly
+// against a single letter.
+const ID_CAPTURE = '([a-zA-Z]{0,4}[-\\s]?\\d+[a-zA-Z]?)';
 const KNOWN_ID_PATTERNS = {
-  machine_id: /\b(?:machine|unit)\s*(?:id\s*|no\.?\s*|number\s*)?[:#]?\s*([a-zA-Z]?\d+[a-zA-Z]?)/i,
+  machine_id: new RegExp(`\\b(?:machine|unit)\\s*(?:id\\s*|no\\.?\\s*|number\\s*)?[:#]?\\s*${ID_CAPTURE}`, 'i'),
 };
+
+// Secondary fallback when there's no "machine"/"unit" trigger word at all —
+// a technician often just leads with the unit's own ID ("RO-2048 filter
+// replaced...", "AC-1024 pressure is..."). Scoped to the very start of the
+// claim specifically to avoid matching an unrelated alphanumeric token
+// later in the sentence (a reading, a ppm value, etc.) as if it were an ID.
+const LEADING_BARE_ID_PATTERN = /^\s*([A-Za-z]{1,4}-?\d{2,6})\b/;
 
 const KNOWN_NUMBER_PATTERNS = {
   pressure: /pressure[^0-9-]*(-?\d+(?:\.\d+)?)/i,
@@ -81,26 +101,111 @@ function genericNumberPattern(field) {
 
 function genericIdPattern(field) {
   const trigger = escapeRegExp(field.key).replace(/_/g, '[\\s_]*');
-  return new RegExp(`${trigger}\\s*(?:id\\s*|no\\.?\\s*|number\\s*)?[:#]?\\s*([a-zA-Z]?\\d+[a-zA-Z]?)`, 'i');
+  return new RegExp(`${trigger}\\s*(?:id\\s*|no\\.?\\s*|number\\s*)?[:#]?\\s*${ID_CAPTURE}`, 'i');
+}
+
+// ---------------------------------------------------------------------------
+// Heuristic fallback for 'text' checklist fields (filter_replaced,
+// cooling_verified, drainage_check, vibration_check, ...) — a completion/
+// status statement, not free descriptive prose. Every one of these fields
+// across every service checklist follows the same shape: "<subject> was
+// <done/not done>" — so instead of a per-service lookup table, the trigger
+// word is derived generically from the field's own key (filter_replaced ->
+// "filter", cooling_verified -> "cooling", drainage_check -> "drainage",
+// vibration_check -> "vibration"), and the same completion/negation
+// detector runs for all of them.
+// ---------------------------------------------------------------------------
+
+// Suffixes that describe HOW a field is checked, not WHAT it's about —
+// stripped so the remaining word(s) are the actual subject to search for in
+// the claim text.
+const TEXT_FIELD_STOP_SUFFIXES = new Set(['check', 'checked', 'verified', 'replaced', 'status', 'result', 'test', 'tested']);
+
+// A checklist key uses its noun form ("drainage_check", "vibration_check")
+// but real speech uses whatever conjugation is natural ("drain test",
+// "vibrating"). Stripping a trailing noun-forming suffix turns the trigger
+// into a shared root ("drainage" -> "drain", "vibration" -> "vibr") that a
+// `\bROOT\w*` match then catches regardless of conjugation — checked
+// longest-suffix-first so "vibration" strips as "-ation" (-> "vibr") before
+// the shorter "-ion" would (-> "vibrat").
+const SUFFIX_STRIP = ['ation', 'ing', 'age', 'ion', 'ed'];
+function stemWord(word) {
+  for (const suffix of SUFFIX_STRIP) {
+    if (word.length > suffix.length + 3 && word.endsWith(suffix)) return word.slice(0, -suffix.length);
+  }
+  return word;
+}
+
+function textFieldTriggerWords(field) {
+  const meaningful = field.key.split('_').filter((w) => w.length >= 3 && !TEXT_FIELD_STOP_SUFFIXES.has(w));
+  const words = meaningful.length > 0 ? meaningful : field.key.split('_').filter((w) => w.length >= 3);
+  return words.map(stemWord);
+}
+
+// Word stems, not exact words, so "replace/replaced/replacing/replacement"
+// or "verify/verified/verifying" all match the same cue — a real claim is
+// spoken/transcribed text, not a fixed vocabulary list.
+const POSITIVE_COMPLETION_CUES = /\b(replac\w*|install\w*|complet\w*|fix\w*|resolv\w*|normal\w*|ok(?:ay)?\w*|fine|pass\w*|clear\w*|clean\w*|verif\w*|confirm\w*|work(?:ed|ing)?|good|done|addressed|resolved)\b/i;
+const NEGATION_CUES = /\b(not|never|n't|without|no|fail\w*|didn't|isn't|wasn't|hasn't)\b/i;
+// How far a negation cue can sit before a completion cue and still be read
+// as negating it ("filter was NOT replaced") rather than an unrelated
+// negation elsewhere in the same sentence.
+const NEGATION_PROXIMITY_CHARS = 30;
+
+/**
+ * @param {string} rawText
+ * @param {object} field — a 'text'-type checklist field
+ * @returns {boolean|undefined} true/false if a completion statement about
+ *   this field's subject was found (negation-aware); undefined if nothing
+ *   relevant was said — never a guess.
+ */
+function heuristicExtractTextField(rawText, field) {
+  const triggers = textFieldTriggerWords(field);
+  if (triggers.length === 0) return undefined;
+
+  // Scope the search to sentences that actually mention the subject — a
+  // negation elsewhere in a long claim (about a different field entirely)
+  // must never flip this field's value.
+  const triggerPattern = new RegExp(`\\b(?:${triggers.map(escapeRegExp).join('|')})\\w*`, 'i');
+  const sentences = rawText.split(/(?<=[.!?])\s+/).filter((s) => triggerPattern.test(s));
+  if (sentences.length === 0) return undefined;
+  const scoped = sentences.join(' ');
+
+  const positiveMatch = POSITIVE_COMPLETION_CUES.exec(scoped);
+  if (!positiveMatch) return undefined;
+
+  // Look for a negation cue anywhere before the completion cue, within the
+  // proximity window — "filter was NOT replaced" negates; "filter replaced,
+  // not damaged" does not (the negation comes AFTER the relevant cue, about
+  // something else).
+  const beforeCue = scoped.slice(0, positiveMatch.index);
+  const windowStart = Math.max(0, positiveMatch.index - NEGATION_PROXIMITY_CHARS);
+  const negationMatch = NEGATION_CUES.exec(beforeCue.slice(windowStart));
+  return !negationMatch;
 }
 
 /**
  * @param {string} rawText
- * @param {Array} checklist — fields to attempt to extract; only 'id' and
- *   'number' types are attempted (free-text fields aren't reliably
- *   regex-extractable, and are left for the technician to correct/confirm).
+ * @param {Array} checklist — fields to attempt to extract: 'id' and
+ *   'number' types via regex value-extraction, 'text' types via the
+ *   completion/negation detector above. Free-text fields with no
+ *   recognizable completion-statement shape are left for the technician to
+ *   confirm explicitly rather than guessed at.
  */
 function heuristicExtractClaim(rawText, checklist) {
   const data = {};
   for (const field of checklist) {
     if (field.type === 'id') {
       const pattern = KNOWN_ID_PATTERNS[field.key] || genericIdPattern(field);
-      const match = rawText.match(pattern);
+      const match = rawText.match(pattern) || rawText.match(LEADING_BARE_ID_PATTERN);
       if (match) data[field.key] = match[1];
     } else if (field.type === 'number') {
       const pattern = KNOWN_NUMBER_PATTERNS[field.key] || genericNumberPattern(field);
       const match = rawText.match(pattern);
       if (match) data[field.key] = Number.parseFloat(match[1]);
+    } else if (field.type === 'text') {
+      const extracted = heuristicExtractTextField(rawText, field);
+      if (extracted !== undefined) data[field.key] = extracted;
     }
   }
   return data;

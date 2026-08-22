@@ -4,12 +4,18 @@
 // Input:
 //   checklist — array of field defs (see checklists.js)
 //   claim     — { data: { [fieldKey]: value, ... } } | null   (the voice claim, one source)
-//   evidence  — [ { role: string, data?: { [fieldKey]: value } }, ... ]
+//   evidence  — [ { role, data?, quality?, extractionSource? }, ... ], oldest
+//               first (the caller orders by created_at — see verifications.js)
 //               `role` identifies what the evidence item IS (e.g. "serial_photo",
 //               "final_photo") and satisfies 'photo' fields whose key matches it.
 //               `data` is whatever structured values were extracted FROM that
 //               item (e.g. OCR off a nameplate, a gauge reading read off a
 //               photo) and can independently satisfy 'id'/'number'/'text' fields.
+//               `quality` is { readable, issue, note } from extraction/extract.js.
+//               `extractionSource` is 'claude' | 'none' — whether a real vision
+//               call actually judged this item, or only the no-AI structural
+//               heuristic did; only the most recent item per role is ever
+//               used (a replaced photo supersedes what it replaced).
 //
 // Output:
 //   {
@@ -87,9 +93,25 @@ function coerceNumber(value) {
   return null;
 }
 
-/** Gather every source that reports a value for this field key. */
-function collectSources(field, claim, evidence) {
+/** Gather every source that reports a value for this field key — job context
+ * first (the Start-a-Job wizard's own structured data), then the voice
+ * claim, then whatever evidence items independently read. Job context is
+ * added as a source like any other, not a silent override: if the claim or
+ * a photo disagrees with it, that's still a real contradiction the
+ * technician needs to resolve (see evaluateIdOrTextField's "Expected:
+ * <job context> / Observed: <claim or photo>" framing) — but if nothing
+ * else mentions the field, the job's own record is enough on its own, and
+ * the field must never be reported "missing" just because claim extraction
+ * failed to re-derive information the system already had. This is the
+ * fix for the core reported bug: machine_id came from the Start-a-Job
+ * wizard's unit_id field, and used to be invisible to the verifier
+ * entirely — extraction failing to re-parse it out of free text then
+ * looked exactly like the technician never having provided it at all. */
+function collectSources(field, claim, evidence, taskContext) {
   const sources = [];
+  if (taskContext && JOB_CONTEXT_FIELD_KEYS.has(field.key) && taskContext.unit_id) {
+    sources.push({ origin: 'job_context', value: taskContext.unit_id });
+  }
   if (claim && claim.data && Object.prototype.hasOwnProperty.call(claim.data, field.key)) {
     sources.push({ origin: 'voice', value: claim.data[field.key] });
   }
@@ -100,6 +122,12 @@ function collectSources(field, claim, evidence) {
   }
   return sources;
 }
+
+// Every checklist across every service names its machine-identity field
+// "machine_id" (checked in checklists.js) — that convention, not a
+// per-service config table, is what lets job-context sourcing above apply
+// identically to AC/RO/fridge/washer with zero service-specific code.
+const JOB_CONTEXT_FIELD_KEYS = new Set(['machine_id']);
 
 function buildFollowUpQuestion(field) {
   switch (field.type) {
@@ -130,20 +158,38 @@ function evaluateEvidencePresenceField(field, evidence) {
       : { key: field.key, type: field.type, status: 'ok', sources: [], message: null };
   }
 
-  const unclear = matching.find((item) => item.quality && item.quality.readable === false);
-  if (unclear) {
-    const issueLabel = unclear.quality.issue ? unclear.quality.issue.replace(/_/g, ' ') : 'unclear';
+  // Only the MOST RECENT upload for this role is authoritative — `evidence`
+  // is ordered oldest-first by the caller, so that's the last match.
+  // A technician who replaces a blurry photo with a clear one needs that to
+  // actually clear the problem; scanning every historical upload for this
+  // role would let one old bad photo permanently block the field even after
+  // it's been fixed.
+  const current = matching[matching.length - 1];
+  if (current.quality && current.quality.readable === false) {
+    const issueLabel = current.quality.issue ? current.quality.issue.replace(/_/g, ' ') : 'unclear';
     return {
       key: field.key,
       type: field.type,
       status: 'unclear',
       sources: [],
-      qualityIssue: unclear.quality.issue,
-      message: `Image is unclear or insufficient to verify ${field.label} (${issueLabel}). ${unclear.quality.note || 'Please re-upload a clearer image.'}`,
+      qualityIssue: current.quality.issue,
+      message: `Image is unclear or insufficient to verify ${field.label} (${issueLabel}). ${current.quality.note || 'Please re-upload a clearer image.'}`,
     };
   }
 
-  return { key: field.key, type: field.type, status: 'ok', sources: [{ origin: field.key, value: true }], message: null };
+  // Structurally fine, but if there was no AI call to actually judge
+  // content (readable defaults true only because nothing flagged it false —
+  // see extraction/extract.js), be honest that presence + structural
+  // plausibility is not the same as a semantic content check.
+  const contentVerified = current.extractionSource === 'claude';
+  return {
+    key: field.key,
+    type: field.type,
+    status: 'ok',
+    sources: [{ origin: field.key, value: true }],
+    contentVerified,
+    message: contentVerified ? null : 'Uploaded and structurally plausible — content not semantically verified (no AI available for this check).',
+  };
 }
 
 function evaluateIdOrTextField(field, sources) {
@@ -158,19 +204,32 @@ function evaluateIdOrTextField(field, sources) {
 
   if (distinctValues.size > 1) {
     const summary = normalized.map((n) => `${n.origin}="${n.value}"`).join(' vs ');
+    const jobSource = normalized.find((n) => n.origin === 'job_context');
     const voiceSource = normalized.find((n) => n.origin === 'voice');
-    // "Claimed X vs observed Y" phrasing whenever the claim itself is one of
-    // the disagreeing sources — the technician's own claim didn't match what
-    // was found in the evidence, not just two evidence items disagreeing.
-    const message = voiceSource
-      ? `Claimed value: "${voiceSource.value}"\nObserved value: ${normalized.filter((n) => n !== voiceSource).map((n) => `"${n.value}" (${n.origin})`).join(', ')}\nThe uploaded evidence does not match the technician's claim for ${field.label}.`
-      : `Conflicting values for ${field.label}: ${summary}`;
+    // Job context (the Start-a-Job wizard's own record) is the most
+    // authoritative source when it's present — "Expected" is what the job
+    // was actually created with, "Observed" is whatever the claim or a
+    // photo said instead (this is the machine-ID-mismatch case: a photo of
+    // the wrong unit, or a claim that names a different machine). Falls
+    // back to "Claimed/Observed" framing (the claim-vs-evidence mismatch
+    // case) when there's no job context source to anchor on.
+    let message;
+    if (jobSource) {
+      const disagreeing = normalized.filter((n) => n !== jobSource);
+      const label = field.key === 'machine_id' ? 'Machine ID mismatch' : `Mismatch on ${field.label}`;
+      message = `${label}.\nExpected: "${jobSource.value}" (from the job record)\nObserved: ${disagreeing.map((n) => `"${n.value}" (${n.origin})`).join(', ')}\nThe claim or uploaded evidence doesn't match this job's ${field.label.toLowerCase()}.`;
+    } else if (voiceSource) {
+      message = `Claimed value: "${voiceSource.value}"\nObserved value: ${normalized.filter((n) => n !== voiceSource).map((n) => `"${n.value}" (${n.origin})`).join(', ')}\nThe uploaded evidence does not match the technician's claim for ${field.label}.`;
+    } else {
+      message = `Conflicting values for ${field.label}: ${summary}`;
+    }
     return {
       key: field.key,
       type: field.type,
       status: 'contradiction',
       sources: normalized,
-      mismatch: Boolean(voiceSource),
+      mismatch: Boolean(jobSource || voiceSource),
+      machineMismatch: Boolean(jobSource && field.key === 'machine_id'),
       message,
     };
   }
@@ -255,11 +314,11 @@ function evaluateNumberField(field, sources) {
   return { key: field.key, type: field.type, status: 'ok', sources: parsed, message: null };
 }
 
-function evaluateField(field, claim, evidence) {
+function evaluateField(field, claim, evidence, taskContext) {
   if (field.type === 'photo' || field.type === 'document') {
     return evaluateEvidencePresenceField(field, evidence);
   }
-  const sources = collectSources(field, claim, evidence);
+  const sources = collectSources(field, claim, evidence, taskContext);
   if (field.type === 'number') {
     return evaluateNumberField(field, sources);
   }
@@ -289,9 +348,17 @@ function computeScore(checklist, fields) {
 
 /**
  * Run the verifier over one task's claim + evidence against a checklist.
+ *
+ * @param {{ checklist: Array, claim: object|null, evidence: Array,
+ *   taskContext?: { unit_id?: string } }} input
+ *   `taskContext` is the Start-a-Job wizard's own structured record for
+ *   this task (currently just unit_id — the one piece of job context every
+ *   checklist actually verifies against). Optional and additive: omitting
+ *   it entirely reproduces the exact pre-existing behavior, which is what
+ *   keeps every one of the original 27 eval cases passing unchanged.
  */
-export function verifyTask({ checklist, claim = null, evidence = [] }) {
-  const fields = checklist.map((field) => evaluateField(field, claim, evidence));
+export function verifyTask({ checklist, claim = null, evidence = [], taskContext = null }) {
+  const fields = checklist.map((field) => evaluateField(field, claim, evidence, taskContext));
 
   const badFields = fields.filter((f) => f.status === 'contradiction' || f.status === 'out_of_range');
   const unclearFields = fields.filter((f) => f.status === 'unclear');
@@ -344,8 +411,8 @@ export function verifyTask({ checklist, claim = null, evidence = [] }) {
  *   ranges for it (never silently resolved — both are preserved and shown);
  *   absent means nothing was found — never invented, never assumed.
  */
-export function verifyTaskWithReferences({ checklist, claim = null, evidence = [], references = {} }) {
-  const base = verifyTask({ checklist, claim, evidence });
+export function verifyTaskWithReferences({ checklist, claim = null, evidence = [], references = {}, taskContext = null }) {
+  const base = verifyTask({ checklist, claim, evidence, taskContext });
 
   const fields = base.fields.map((field) => {
     const checklistField = checklist.find((f) => f.key === field.key);

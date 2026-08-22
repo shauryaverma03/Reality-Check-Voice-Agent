@@ -21,6 +21,7 @@ const {
   AC_SERVICE_CHECKLIST,
   RO_SERVICE_CHECKLIST,
   FRIDGE_SERVICE_CHECKLIST,
+  WASHER_SERVICE_CHECKLIST,
 } = await import('../checklists.js');
 
 const cases = [];
@@ -54,6 +55,72 @@ testCase({
   checklist: RO_SERVICE_CHECKLIST,
   rawText: 'RO filter replaced and TDS is 180 ppm',
   expectData: { machine_id: undefined, tds_output: 180 }, // no machine id spoken here
+});
+
+// ---------------------------------------------------------------------------
+// Multi-letter ID prefixes and text-field (completion/negation) extraction
+// — the reported RO-2048 bug's actual root cause and fix, plus the same
+// class of fix generalized across every service. The original ID capture
+// group (`[a-zA-Z]?\d+[a-zA-Z]?`) allowed only ONE leading letter, so a
+// real-world ID like "RO-2048" (2-letter service prefix — the format every
+// service in this project uses) silently matched nothing at all.
+// ---------------------------------------------------------------------------
+
+testCase({
+  name: 'REPORTED BUG, exact claim text: RO-2048 (2-letter prefix) + filter replacement + TDS all extract correctly',
+  checklist: RO_SERVICE_CHECKLIST,
+  rawText: 'Machine RO-2048 maintenance completed. The bad taste/odor issue was addressed by replacing the RO filter. The machine is a Kent Grand Plus RO and the final TDS reading is 85 ppm.',
+  expectData: { machine_id: 'RO-2048', tds_output: 85, filter_replaced: true },
+});
+
+testCase({
+  name: 'Negation: "filter was not replaced" extracts false, not true (naive substring matching would get this wrong)',
+  checklist: RO_SERVICE_CHECKLIST,
+  rawText: 'Machine RO-2048. TDS is 85 ppm. The filter was not replaced this time.',
+  expectData: { machine_id: 'RO-2048', filter_replaced: false },
+});
+
+testCase({
+  name: 'Negation via contraction ("wasn\'t") + no "machine/unit" trigger word at all -> still extracts the leading bare ID',
+  checklist: RO_SERVICE_CHECKLIST,
+  rawText: "RO-2048: filter wasn't replaced. TDS 85 ppm.",
+  expectData: { machine_id: 'RO-2048', filter_replaced: false },
+});
+
+testCase({
+  name: 'AC: bare leading ID with no "machine" trigger word (user-reported expected shape)',
+  checklist: AC_SERVICE_CHECKLIST,
+  rawText: 'AC-1024 pressure is 4.2 bar and outlet temperature is 8 degrees.',
+  expectData: { machine_id: 'AC-1024', pressure: 4.2, temperature: 8 },
+});
+
+testCase({
+  name: 'Refrigerator: bare leading ID + cooling status completion phrase',
+  checklist: FRIDGE_SERVICE_CHECKLIST,
+  rawText: 'FR-1001 internal temperature is 4 degrees and cooling is normal.',
+  expectData: { machine_id: 'FR-1001', internal_temperature: 4, cooling_verified: true },
+});
+
+testCase({
+  name: 'Washing machine: bare leading ID + two completion phrases (drain test / vibration check), different conjugation than the checklist key ("drain" vs. "drainage")',
+  checklist: WASHER_SERVICE_CHECKLIST,
+  rawText: 'WM-302 drain test completed and vibration check normal.',
+  expectData: { machine_id: 'WM-302', drainage_check: true, vibration_check: true },
+});
+
+testCase({
+  name: 'Washing machine negation: "drain test not completed" extracts false',
+  checklist: WASHER_SERVICE_CHECKLIST,
+  rawText: 'WM-302: drain test not completed, will need a follow-up visit.',
+  expectData: { machine_id: 'WM-302', drainage_check: false },
+  expectAbsent: ['vibration_check'], // genuinely never mentioned — must not be guessed
+});
+
+testCase({
+  name: 'Original AC eval-style claim (plain numeric ID, no letters) still extracts unchanged — the ID_CAPTURE widening must not regress the pre-existing format',
+  checklist: AC_SERVICE_CHECKLIST,
+  rawText: 'Machine 27 maintenance complete. Pressure is 4.2 bar. Temperature is 82 degrees.',
+  expectData: { machine_id: '27', pressure: 4.2, temperature: 82 },
 });
 
 // ---------------------------------------------------------------------------

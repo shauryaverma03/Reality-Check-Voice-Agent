@@ -10,6 +10,18 @@ const STATUS_LABELS = {
   unclear: 'Image unclear',
 };
 
+// A source's `origin` is a stable internal token (see verifier.js) — shown
+// here in plain language instead. Anything not in this map (an evidence
+// role like "serial_photo") is already a real, human-readable label as-is.
+const ORIGIN_LABELS = {
+  job_context: 'Job record',
+  voice: 'Claim',
+};
+
+function originLabel(origin) {
+  return ORIGIN_LABELS[origin] || origin;
+}
+
 export default function FieldBreakdown({ fields }) {
   if (!fields || fields.length === 0) {
     return <p className="muted">No verification run yet.</p>;
@@ -34,13 +46,14 @@ export default function FieldBreakdown({ fields }) {
                 <span className={`field-status field-status-${f.status}`}>
                   {STATUS_LABELS[f.status] || f.status}
                 </span>
-                {f.mismatch && <span className="field-status field-status-mismatch">Claim ≠ Evidence</span>}
+                {f.machineMismatch && <span className="field-status field-status-mismatch">Machine ID Mismatch</span>}
+                {f.mismatch && !f.machineMismatch && <span className="field-status field-status-mismatch">Claim ≠ Evidence</span>}
               </td>
               <td>
                 {f.sources && f.sources.length > 0 ? (
                   f.sources.map((s, i) => (
                     <div key={i} className="source-chip">
-                      <strong>{s.origin}</strong>: {String(s.value)}
+                      <strong>{originLabel(s.origin)}</strong>: {String(s.value)}
                     </div>
                   ))
                 ) : (

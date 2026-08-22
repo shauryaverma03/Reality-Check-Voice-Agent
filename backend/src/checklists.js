@@ -71,7 +71,7 @@ export const RO_SERVICE_CHECKLIST = [
   },
   {
     key: 'tds_output',
-    label: 'Output TDS reading',
+    label: 'Output TDS',
     type: 'number',
     unit: 'ppm',
     tolerance: { min: 50, max: 150 },

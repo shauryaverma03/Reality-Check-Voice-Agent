@@ -76,14 +76,27 @@ router.post('/', (req, res) => {
     });
   }
 
-  const evidenceRows = db.prepare('SELECT * FROM evidence WHERE task_id = ?').all(task.id);
+  // ORDER BY matters here, not just for display: the verifier treats the
+  // MOST RECENT evidence item per role as authoritative (see
+  // evaluateEvidencePresenceField) so replacing a bad photo with a good one
+  // actually clears the problem, instead of the old upload permanently
+  // blocking that field.
+  const evidenceRows = db.prepare('SELECT * FROM evidence WHERE task_id = ? ORDER BY created_at ASC').all(task.id);
 
   const claim = { data: JSON.parse(claimRow.extracted_json), raw_text: claimRow.raw_text };
   const evidence = evidenceRows.map((e) => ({
     role: e.role,
     data: JSON.parse(e.extracted_json),
     quality: e.quality_json ? JSON.parse(e.quality_json) : null,
+    extractionSource: e.extraction_source,
   }));
+
+  // The Start-a-Job wizard's own structured record for this task — the
+  // verifier treats this as a real source (see verifier.js's
+  // collectSources), not a fallback bolted on here. This is what stops
+  // machine_id from being reported "missing" just because claim extraction
+  // failed to re-derive information the job was already created with.
+  const taskContext = { unit_id: task.unit_id };
 
   // RAG retrieval — only for fields the checklist says need reference backing.
   // Fetches top-3 (not just top-1) so detectRangeConflict can tell "two
@@ -114,7 +127,7 @@ router.post('/', (req, res) => {
     }
   }
 
-  const result = verifyTaskWithReferences({ checklist, claim, evidence, references });
+  const result = verifyTaskWithReferences({ checklist, claim, evidence, references, taskContext });
 
   const id = randomUUID();
   db.prepare(

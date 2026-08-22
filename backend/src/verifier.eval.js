@@ -451,6 +451,116 @@ testCase({
 });
 
 // ---------------------------------------------------------------------------
+// 35-44. Job context as a verification source — the reported bug's actual
+// root cause and fix. taskContext.unit_id is the Start-a-Job wizard's own
+// record; it must supply machine_id when the claim/evidence don't
+// independently mention it, participate in mismatch detection when they
+// DO disagree with it, and never override a genuine mismatch silently.
+// Covers all 4 services, not just the RO example the bug was reported in.
+// ---------------------------------------------------------------------------
+
+testCase({
+  name: 'REPORTED BUG (RO): job context alone supplies machine_id when claim extraction has nothing for it -> not "missing"',
+  checklist: RO_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'RO-2048' },
+  claim: { data: { tds_output: 85, filter_replaced: true } }, // realistic: extraction genuinely found no machine_id token
+  evidence: [{ role: 'serial_photo' }, { role: 'filter_photo' }],
+  expect: {
+    decision: 'VERIFIED',
+    score: 100,
+    fieldStatuses: { machine_id: 'ok', tds_output: 'ok', filter_replaced: 'ok' },
+  },
+});
+
+testCase({
+  name: 'Job context (RO-2048) + claim independently agreeing on the same ID -> ok, not a false contradiction',
+  checklist: RO_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'RO-2048' },
+  claim: { data: { machine_id: 'RO-2048', tds_output: 85, filter_replaced: true } },
+  evidence: [{ role: 'serial_photo' }, { role: 'filter_photo' }],
+  expect: { decision: 'VERIFIED', fieldStatuses: { machine_id: 'ok' } },
+});
+
+testCase({
+  name: 'Job context (RO-2048) vs. claim naming a different machine (RO-9999) -> CONFLICT with Expected/Observed framing, machineMismatch flag',
+  checklist: RO_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'RO-2048' },
+  claim: { data: { machine_id: 'RO-9999', tds_output: 85, filter_replaced: true } },
+  evidence: [{ role: 'serial_photo' }, { role: 'filter_photo' }],
+  expect: { decision: 'CONFLICT_HUMAN_REVIEW', fieldStatuses: { machine_id: 'contradiction' } },
+});
+
+testCase({
+  name: 'Job context (AC-1024) alone, no claim mention of machine_id at all -> ok (AC)',
+  checklist: AC_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'AC-1024' },
+  claim: { data: { pressure: 4.2, temperature: 80 } },
+  evidence: [{ role: 'serial_photo' }, { role: 'final_photo' }],
+  expect: { decision: 'VERIFIED', fieldStatuses: { machine_id: 'ok' } },
+});
+
+testCase({
+  name: 'Job context (FR-1001) alone, no claim mention of machine_id at all -> ok (Refrigerator)',
+  checklist: FRIDGE_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'FR-1001' },
+  claim: { data: { internal_temperature: 5, cooling_verified: true } },
+  evidence: [{ role: 'serial_photo' }, { role: 'cooling_photo' }],
+  expect: { decision: 'VERIFIED', fieldStatuses: { machine_id: 'ok' } },
+});
+
+testCase({
+  name: 'Job context (WM-302) alone, no claim mention of machine_id at all -> ok (Washing Machine)',
+  checklist: WASHER_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'WM-302' },
+  claim: { data: { drainage_check: true, vibration_check: true } },
+  evidence: [{ role: 'serial_photo' }, { role: 'error_code_photo' }],
+  expect: { decision: 'VERIFIED', fieldStatuses: { machine_id: 'ok' } },
+});
+
+testCase({
+  name: 'No taskContext at all (e.g. a task with no unit_id set) -> falls back to the pre-existing behavior, machine_id genuinely missing',
+  checklist: RO_SERVICE_CHECKLIST,
+  taskContext: { unit_id: null },
+  claim: { data: { tds_output: 85, filter_replaced: true } },
+  evidence: [{ role: 'serial_photo' }, { role: 'filter_photo' }],
+  expect: { decision: 'NEED_MORE_EVIDENCE', fieldStatuses: { machine_id: 'missing' } },
+});
+
+testCase({
+  name: 'Replacing a bad photo with a good one clears the problem — most recent evidence item per role wins, not "any historical upload"',
+  checklist: RO_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'RO-2048' },
+  claim: { data: { machine_id: 'RO-2048', tds_output: 85, filter_replaced: true } },
+  evidence: [
+    { role: 'serial_photo', quality: { readable: false, issue: 'blurry' } }, // the original bad upload
+    { role: 'serial_photo', quality: { readable: true, issue: null } }, // the technician's replacement — this one should win
+    { role: 'filter_photo' },
+  ],
+  expect: { decision: 'VERIFIED', fieldStatuses: { serial_photo: 'ok' } },
+});
+
+testCase({
+  name: 'A real vision call (extractionSource claude) marks the photo field content-verified; no-AI heuristic does not',
+  checklist: RO_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'RO-2048' },
+  claim: { data: { machine_id: 'RO-2048', tds_output: 85, filter_replaced: true } },
+  evidence: [
+    { role: 'serial_photo', quality: { readable: true, issue: null }, extractionSource: 'claude' },
+    { role: 'filter_photo', quality: { readable: true, issue: null }, extractionSource: 'none' },
+  ],
+  expect: { decision: 'VERIFIED' },
+});
+
+testCase({
+  name: 'Job context present but the checklist has no machine_id-shaped field at all -> harmless no-op (defensive: taskContext never invents an unrelated field)',
+  checklist: RO_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'RO-2048' },
+  claim: { data: { machine_id: 'RO-2048', filter_replaced: true } }, // tds_output genuinely never stated
+  evidence: [{ role: 'serial_photo' }, { role: 'filter_photo' }],
+  expect: { decision: 'NEED_MORE_EVIDENCE', fieldStatuses: { tds_output: 'missing', machine_id: 'ok' } },
+});
+
+// ---------------------------------------------------------------------------
 // Runner
 // ---------------------------------------------------------------------------
 
@@ -458,8 +568,8 @@ function runCase(def) {
   const checklist = def.checklist || AC_SERVICE_CHECKLIST;
   const result =
     def.mode === 'withReferences'
-      ? verifyTaskWithReferences({ checklist, claim: def.claim ?? null, evidence: def.evidence ?? [], references: def.references ?? {} })
-      : verifyTask({ checklist, claim: def.claim ?? null, evidence: def.evidence ?? [] });
+      ? verifyTaskWithReferences({ checklist, claim: def.claim ?? null, evidence: def.evidence ?? [], references: def.references ?? {}, taskContext: def.taskContext ?? null })
+      : verifyTask({ checklist, claim: def.claim ?? null, evidence: def.evidence ?? [], taskContext: def.taskContext ?? null });
   const failures = [];
 
   if (def.expect.decision && result.decision !== def.expect.decision) {
