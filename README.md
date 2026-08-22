@@ -61,7 +61,7 @@ unit's working range, even after the technician fixes a rejected photo.
 
 | Step | |
 |---|---|
-| **1–2. Start a job** — machine info, then a summary before starting. | ![Machine info](docs/screenshots/01-machine-info.png) ![Job summary](docs/screenshots/02-job-summary.png) |
+| **1. Start a job** — machine info, then a summary before starting. | ![Job summary](docs/screenshots/02-job-summary.png) |
 | **3. State the claim** — voice/text claim; fields extracted automatically. | ![Claim extracted](docs/screenshots/03-state-claim.png) |
 | **4. Evidence rejected** — vision review flags a photo as the wrong subject. | ![Evidence unusable](docs/screenshots/04-evidence-unusable.png) |
 | **5. Evidence fixed, reading still flagged** — photo passes; TDS is already out of spec. | ![Evidence re-uploaded](docs/screenshots/05-evidence-uploaded.png) |
