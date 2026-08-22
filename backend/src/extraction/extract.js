@@ -22,6 +22,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { heuristicImageQuality } from './imageQuality.js';
+import { apiTelemetry, heuristicTelemetry } from '../observability/telemetry.js';
 
 const MODEL = 'claude-sonnet-5';
 
@@ -224,27 +225,45 @@ function buildClaimSystemPrompt(checklist) {
 
 /**
  * @param {{ rawText: string, checklist: Array }} input
- * @returns {Promise<{ data: object, source: 'claude' | 'heuristic' }>}
+ * @returns {Promise<{ data: object, source: 'claude' | 'heuristic', telemetry: object }>}
+ *   `telemetry` is always present (see observability/telemetry.js) — including
+ *   on the heuristic path, where it records latency and mode with no tokens
+ *   or cost, so the observability view can show what fraction of extractions
+ *   ran without AI at all.
  */
 export async function extractClaimFromVoice({ rawText, checklist }) {
   const anthropic = getClient();
+  const started = performance.now();
+
   if (!anthropic) {
-    return { data: heuristicExtractClaim(rawText, checklist), source: 'heuristic' };
+    const data = heuristicExtractClaim(rawText, checklist);
+    return { data, source: 'heuristic', telemetry: heuristicTelemetry('claim_extraction', started, 'no_api_key') };
   }
+
+  const systemPrompt = buildClaimSystemPrompt(checklist);
   try {
     const response = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 300,
-      system: buildClaimSystemPrompt(checklist),
+      system: systemPrompt,
       messages: [{ role: 'user', content: rawText }],
     });
     const textBlock = response.content?.find((b) => b.type === 'text');
     const parsed = parseJSONFromText(textBlock?.text);
     if (!parsed) throw new Error('Claude returned no parseable JSON for claim extraction');
-    return { data: parsed, source: 'claude' };
+    return {
+      data: parsed,
+      source: 'claude',
+      telemetry: apiTelemetry('claim_extraction', started, MODEL, systemPrompt, response),
+    };
   } catch (err) {
     console.error('[extraction] Claude claim extraction failed, falling back to heuristic parser:', err.message);
-    return { data: heuristicExtractClaim(rawText, checklist), source: 'heuristic' };
+    const data = heuristicExtractClaim(rawText, checklist);
+    return {
+      data,
+      source: 'heuristic',
+      telemetry: heuristicTelemetry('claim_extraction', started, `api_error: ${err.message}`),
+    };
   }
 }
 
@@ -306,10 +325,12 @@ Respond with a single flat JSON object containing "readable", "quality_issue", a
  *   without it, the vision call can still judge blur/exposure/resolution
  *   but has no basis to catch a photo of the wrong equipment entirely
  *   (e.g. an AC unit uploaded against an RO job's required evidence).
- * @returns {Promise<{ data: object, source: 'claude' | 'none', quality: { readable: boolean, issue: string|null, note: string } }>}
+ * @returns {Promise<{ data: object, source: 'claude' | 'none', quality: { readable: boolean, issue: string|null, note: string }, telemetry: object }>}
  */
 export async function extractEvidenceFromPhoto({ buffer, mimeType, role, checklist, taskType }) {
   const anthropic = getClient();
+  const started = performance.now();
+
   if (!anthropic) {
     // No vision model to judge readability OR subject with — fall back to a
     // deterministic, dependency-free structural check (file size / pixel
@@ -318,13 +339,20 @@ export async function extractEvidenceFromPhoto({ buffer, mimeType, role, checkli
     // same as a content-verified one: the caller (verifier.js) gates on
     // `source` for exactly this reason, so this heuristic path can never by
     // itself produce VERIFIED for a required photo field.
-    return { data: {}, source: 'none', quality: heuristicImageQuality(buffer, mimeType) };
+    return {
+      data: {},
+      source: 'none',
+      quality: heuristicImageQuality(buffer, mimeType),
+      telemetry: heuristicTelemetry('photo_extraction', started, 'no_api_key'),
+    };
   }
+
+  const systemPrompt = buildPhotoSystemPrompt(checklist, role, taskType);
   try {
     const response = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 300,
-      system: buildPhotoSystemPrompt(checklist, role, taskType),
+      system: systemPrompt,
       messages: [
         {
           role: 'user',
@@ -346,9 +374,19 @@ export async function extractEvidenceFromPhoto({ buffer, mimeType, role, checkli
       issue,
       note: issue ? `Vision model flagged this photo as unusable: ${issue.replace(/_/g, ' ')}.` : 'Assessed as readable by the vision model.',
     };
-    return { data, source: 'claude', quality };
+    return {
+      data,
+      source: 'claude',
+      quality,
+      telemetry: apiTelemetry('photo_extraction', started, MODEL, systemPrompt, response),
+    };
   } catch (err) {
     console.error('[extraction] Claude photo extraction failed, degrading to heuristic quality check:', err.message);
-    return { data: {}, source: 'none', quality: heuristicImageQuality(buffer, mimeType) };
+    return {
+      data: {},
+      source: 'none',
+      quality: heuristicImageQuality(buffer, mimeType),
+      telemetry: heuristicTelemetry('photo_extraction', started, `api_error: ${err.message}`),
+    };
   }
 }

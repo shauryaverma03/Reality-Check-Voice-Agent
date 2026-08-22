@@ -17,6 +17,7 @@ import { db, getChecklistForTaskType } from '../db/index.js';
 import { verifyTaskWithReferences } from '../verifier.js';
 import { retrieve, buildFieldQuery, detectRangeConflict } from '../rag/retrieve.js';
 import { getTaskOr404, logAgentRun, serializeVerification, STATUS_BY_DECISION } from './helpers.js';
+import { stepTelemetry } from '../observability/telemetry.js';
 
 const router = Router({ mergeParams: true });
 
@@ -104,6 +105,7 @@ router.post('/', (req, res) => {
   // chunks of the same story" before deciding what to cite.
   const references = {};
   const retrievalLog = [];
+  const retrievalStarted = performance.now();
   for (const field of checklist) {
     if (!field.needsReference) continue;
     const extractedValue = extractedValueForField(field, claim, evidence);
@@ -127,7 +129,11 @@ router.post('/', (req, res) => {
     }
   }
 
+  const retrievalTelemetry = stepTelemetry(retrievalStarted, { fields_retrieved: retrievalLog.length });
+
+  const verifyStarted = performance.now();
   const result = verifyTaskWithReferences({ checklist, claim, evidence, references, taskContext });
+  const verifyTelemetry = stepTelemetry(verifyStarted);
 
   const id = randomUUID();
   db.prepare(
@@ -150,9 +156,9 @@ router.post('/', (req, res) => {
   );
 
   if (retrievalLog.length > 0) {
-    logAgentRun(task.id, 'rag_retrieval', { fields: retrievalLog.map((r) => r.field_key) }, retrievalLog);
+    logAgentRun(task.id, 'rag_retrieval', { fields: retrievalLog.map((r) => r.field_key) }, retrievalLog, retrievalTelemetry);
   }
-  logAgentRun(task.id, 'verify', { checklist_task_type: task.task_type }, result);
+  logAgentRun(task.id, 'verify', { checklist_task_type: task.task_type }, result, verifyTelemetry);
 
   const row = db.prepare('SELECT * FROM verification_results WHERE id = ?').get(id);
   res.status(201).json(serializeVerification(row));

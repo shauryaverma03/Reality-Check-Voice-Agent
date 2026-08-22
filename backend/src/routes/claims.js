@@ -30,13 +30,13 @@ router.post('/', async (req, res) => {
   }
 
   const checklist = getChecklistForTaskType(task.task_type);
-  const { data, source } = await extractClaimFromVoice({ rawText: raw_text, checklist });
+  const { data, source, telemetry } = await extractClaimFromVoice({ rawText: raw_text, checklist });
 
   const id = randomUUID();
   db.prepare(
     `INSERT INTO claims (id, task_id, raw_text, extracted_json, extraction_source) VALUES (?, ?, ?, ?, ?)`
   ).run(id, task.id, raw_text, JSON.stringify(data), source);
-  logAgentRun(task.id, 'submit_claim', { raw_text }, { data, source });
+  logAgentRun(task.id, 'submit_claim', { raw_text }, { data, source }, telemetry);
 
   const claim = db.prepare('SELECT * FROM claims WHERE id = ?').get(id);
   res.status(201).json(serializeClaim(claim));

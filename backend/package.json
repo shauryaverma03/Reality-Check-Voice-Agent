@@ -13,7 +13,8 @@
     "ingest:knowledge": "node src/rag/ingest.js",
     "eval:rag": "node src/rag/retrieve.eval.js",
     "eval:uploads": "node src/routes/evidence.eval.js",
-    "eval:extraction": "node src/extraction/extract.eval.js"
+    "eval:extraction": "node src/extraction/extract.eval.js",
+    "eval:observability": "node src/observability/observability.eval.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

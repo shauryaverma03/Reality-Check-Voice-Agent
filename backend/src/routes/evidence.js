@@ -61,16 +61,16 @@ router.post('/', upload.single('file'), async (req, res) => {
   // the verifier correctly does NOT read as unusable (only `readable === false`
   // marks a field unclear; a document simply has no opinion either way).
   const checklist = getChecklistForTaskType(task.task_type);
-  const { data, source, quality } = req.file.mimetype.startsWith('image/')
+  const { data, source, quality, telemetry } = req.file.mimetype.startsWith('image/')
     ? await extractEvidenceFromPhoto({ buffer, mimeType: req.file.mimetype, role, checklist, taskType: task.task_type })
-    : { data: {}, source: 'none', quality: null };
+    : { data: {}, source: 'none', quality: null, telemetry: null };
 
   const id = randomUUID();
   const relativePath = path.relative(DATA_DIR, req.file.path);
   db.prepare(
     `INSERT INTO evidence (id, task_id, role, file_path, mime_type, extracted_json, extraction_source, quality_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(id, task.id, role, relativePath, req.file.mimetype, JSON.stringify(data), source, JSON.stringify(quality || {}));
-  logAgentRun(task.id, `extract_evidence:${role}`, { role, mimeType: req.file.mimetype }, { data, source, quality });
+  logAgentRun(task.id, `extract_evidence:${role}`, { role, mimeType: req.file.mimetype }, { data, source, quality }, telemetry);
 
   const evidence = db.prepare('SELECT * FROM evidence WHERE id = ?').get(id);
   res.status(201).json(serializeEvidence(evidence));

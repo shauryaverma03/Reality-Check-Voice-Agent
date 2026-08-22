@@ -6,6 +6,7 @@ import TechnicianView from './pages/TechnicianView.jsx';
 import SupervisorDashboard from './pages/SupervisorDashboard.jsx';
 import TaskDetail from './pages/TaskDetail.jsx';
 import KnowledgePage from './pages/KnowledgePage.jsx';
+import ObservabilityPage from './pages/ObservabilityPage.jsx';
 import ThemeSwitcher from './components/ThemeSwitcher.jsx';
 import OnboardingTour from './components/OnboardingTour.jsx';
 import { isTourCompleted } from './tour.js';
@@ -117,6 +118,7 @@ export default function App() {
             <Route path="/technician" element={<TechnicianView />} />
             <Route path="/supervisor" element={<SupervisorDashboard />} />
             <Route path="/supervisor/knowledge" element={<KnowledgePage />} />
+            <Route path="/supervisor/observability" element={<ObservabilityPage />} />
             <Route path="/supervisor/tasks/:id" element={<TaskDetail />} />
           </Routes>
         </main>

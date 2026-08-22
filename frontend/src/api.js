@@ -69,4 +69,8 @@ export const api = {
   // Not a `request()` call — this is downloaded directly by the browser via
   // a plain link/window.open, not fetched+parsed as JSON.
   reportCsvUrl: (params) => `${API}/reports/export.csv${toQuery(params)}`,
+
+  // Observability — token/cost totals, latency percentiles, prompt versions.
+  getObservabilitySummary: (params) => request(`/observability/summary${toQuery(params)}`),
+  listAgentRuns: (params) => request(`/observability/runs${toQuery(params)}`),
 };

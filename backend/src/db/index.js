@@ -52,6 +52,20 @@ addColumnIfMissing('ALTER TABLE tasks ADD COLUMN machine_model TEXT');
 // whether the checklist was satisfied.
 addColumnIfMissing('ALTER TABLE verification_results ADD COLUMN functional_json TEXT');
 addColumnIfMissing('ALTER TABLE verification_results ADD COLUMN verification_scope TEXT');
+// Observability: per-step latency, model, prompt version, token usage and
+// cost. Columns rather than a JSON blob so they can be aggregated in SQL
+// (SUM/AVG/percentiles) without parsing every row — see routes/observability.js.
+addColumnIfMissing('ALTER TABLE agent_runs ADD COLUMN duration_ms INTEGER');
+addColumnIfMissing('ALTER TABLE agent_runs ADD COLUMN mode TEXT');
+addColumnIfMissing('ALTER TABLE agent_runs ADD COLUMN model TEXT');
+addColumnIfMissing('ALTER TABLE agent_runs ADD COLUMN prompt_key TEXT');
+addColumnIfMissing('ALTER TABLE agent_runs ADD COLUMN prompt_version TEXT');
+addColumnIfMissing('ALTER TABLE agent_runs ADD COLUMN prompt_hash TEXT');
+addColumnIfMissing('ALTER TABLE agent_runs ADD COLUMN input_tokens INTEGER');
+addColumnIfMissing('ALTER TABLE agent_runs ADD COLUMN output_tokens INTEGER');
+addColumnIfMissing('ALTER TABLE agent_runs ADD COLUMN cost_usd REAL');
+addColumnIfMissing('ALTER TABLE agent_runs ADD COLUMN rate_tier TEXT');
+addColumnIfMissing('ALTER TABLE agent_runs ADD COLUMN fallback_reason TEXT');
 
 export function getChecklistForTaskType(taskType) {
   const row = db.prepare('SELECT fields_json FROM checklists WHERE task_type = ?').get(taskType);

@@ -5,10 +5,38 @@
 import { randomUUID } from 'node:crypto';
 import { db } from '../db/index.js';
 
-export function logAgentRun(taskId, step, input, output) {
+/**
+ * @param {object} [telemetry] — an observability/telemetry.js record. Every
+ *   field is optional: steps that don't call a model (or predate this) simply
+ *   store NULLs, which the observability aggregates skip rather than count as
+ *   zero-latency/zero-cost work.
+ */
+export function logAgentRun(taskId, step, input, output, telemetry = null) {
+  const t = telemetry || {};
   db.prepare(
-    `INSERT INTO agent_runs (id, task_id, step, input_json, output_json) VALUES (?, ?, ?, ?, ?)`
-  ).run(randomUUID(), taskId, step, JSON.stringify(input ?? null), JSON.stringify(output ?? null));
+    `INSERT INTO agent_runs (
+       id, task_id, step, input_json, output_json,
+       duration_ms, mode, model, prompt_key, prompt_version, prompt_hash,
+       input_tokens, output_tokens, cost_usd, rate_tier, fallback_reason
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    randomUUID(),
+    taskId,
+    step,
+    JSON.stringify(input ?? null),
+    JSON.stringify(output ?? null),
+    t.duration_ms ?? null,
+    t.mode ?? null,
+    t.model ?? null,
+    t.prompt_key ?? null,
+    t.prompt_version ?? null,
+    t.prompt_hash ?? null,
+    t.input_tokens ?? null,
+    t.output_tokens ?? null,
+    t.cost_usd ?? null,
+    t.rate_tier ?? null,
+    t.fallback_reason ?? null
+  );
 }
 
 export function findTask(taskId) {

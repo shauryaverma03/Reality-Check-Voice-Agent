@@ -271,6 +271,9 @@ export default function SupervisorDashboard() {
             <Link className="btn secondary" to="/supervisor/knowledge">
               📖 Knowledge base
             </Link>
+            <Link className="btn secondary" to="/supervisor/observability">
+              📈 Observability
+            </Link>
           </div>
         </div>
 
