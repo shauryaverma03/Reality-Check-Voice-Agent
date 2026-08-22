@@ -13,6 +13,7 @@ import multer from 'multer';
 import { db } from '../db/index.js';
 import { extractText } from '../rag/pdf.js';
 import { chunkText } from '../rag/chunk.js';
+import { invalidateRetrievalCache } from '../rag/retrieve.js';
 
 const router = Router();
 
@@ -48,6 +49,12 @@ router.post('/', upload.single('file'), async (req, res) => {
     for (const row of rows) insertChunk.run(row.id, row.document_id, row.chunk_index, row.text);
   });
   insertMany(chunks.map((chunkedText, i) => ({ id: randomUUID(), document_id: docId, chunk_index: i, text: chunkedText })));
+
+  // A "general" (task_type-null) doc is retrievable from every task_type's
+  // corpus (see fetchCandidateChunks), so it can't just invalidate one
+  // cached entry — clear everything. A scoped doc only ever affects its own
+  // task_type's cache.
+  invalidateRetrievalCache(task_type || undefined);
 
   const doc = db.prepare('SELECT * FROM knowledge_documents WHERE id = ?').get(docId);
   res.status(201).json({ ...doc, chunk_count: chunks.length });

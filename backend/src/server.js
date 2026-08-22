@@ -3,6 +3,7 @@ import cors from 'cors';
 import tasksRouter from './routes/tasks.js';
 import checklistsRouter from './routes/checklists.js';
 import knowledgeRouter from './routes/knowledge.js';
+import reportsRouter from './routes/reports.js';
 import { UPLOAD_DIR } from './routes/evidence.js'; // same DATA_DIR-overridable dir evidence.js writes into
 import './db/index.js'; // side effect: creates + seeds the SQLite schema
 import { ingestKnowledge } from './rag/ingest.js';
@@ -22,6 +23,7 @@ app.get('/health', (req, res) => {
 app.use('/api/v1/tasks', tasksRouter);
 app.use('/api/v1/checklists', checklistsRouter);
 app.use('/api/v1/knowledge', knowledgeRouter);
+app.use('/api/v1/reports', reportsRouter);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);

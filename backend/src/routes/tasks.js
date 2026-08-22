@@ -29,7 +29,7 @@ function getTaskOr404(req, res) {
 
 // POST /api/v1/tasks
 router.post('/', (req, res) => {
-  const { task_type = 'ac-service', unit_id = null, technician = null } = req.body || {};
+  const { task_type = 'ac-service', unit_id = null, technician = null, defect = null, machine_model = null } = req.body || {};
   try {
     getChecklistForTaskType(task_type);
   } catch {
@@ -38,9 +38,9 @@ router.post('/', (req, res) => {
 
   const id = randomUUID();
   db.prepare(
-    `INSERT INTO tasks (id, task_type, unit_id, technician, status) VALUES (?, ?, ?, ?, 'pending')`
-  ).run(id, task_type, unit_id, technician);
-  logAgentRun(id, 'create_task', { task_type, unit_id, technician }, null);
+    `INSERT INTO tasks (id, task_type, unit_id, technician, defect, machine_model, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')`
+  ).run(id, task_type, unit_id, technician, defect, machine_model);
+  logAgentRun(id, 'create_task', { task_type, unit_id, technician, defect, machine_model }, null);
 
   res.status(201).json(findTask(id));
 });
@@ -93,17 +93,17 @@ router.get('/:id', (req, res) => {
   res.json(task);
 });
 
-// PATCH /api/v1/tasks/:id  { unit_id?, technician? }
+// PATCH /api/v1/tasks/:id  { unit_id?, technician?, defect?, machine_model? }
 router.patch('/:id', (req, res) => {
   const task = getTaskOr404(req, res);
   if (!task) return;
   const unit_id = req.body?.unit_id ?? task.unit_id;
   const technician = req.body?.technician ?? task.technician;
-  db.prepare(`UPDATE tasks SET unit_id = ?, technician = ?, updated_at = datetime('now') WHERE id = ?`).run(
-    unit_id,
-    technician,
-    task.id
-  );
+  const defect = req.body?.defect ?? task.defect;
+  const machine_model = req.body?.machine_model ?? task.machine_model;
+  db.prepare(
+    `UPDATE tasks SET unit_id = ?, technician = ?, defect = ?, machine_model = ?, updated_at = datetime('now') WHERE id = ?`
+  ).run(unit_id, technician, defect, machine_model, task.id);
   res.json(findTask(task.id));
 });
 

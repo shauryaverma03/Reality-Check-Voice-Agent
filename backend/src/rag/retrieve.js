@@ -82,9 +82,33 @@ function modelMatchBonus(chunk, queryLower) {
   return candidates.some((c) => queryLower.includes(c.toLowerCase())) ? MODEL_MATCH_BONUS : 0;
 }
 
+/** Scores every chunk against one query, given an already-built tokens/idf
+ * index — the part rankChunks() and retrieve()'s cached path share, so
+ * neither has to duplicate the per-chunk result-shaping logic. */
+function scoreChunks(chunks, chunkTokenLists, idf, query) {
+  const queryVec = tfidfVector(tokenize(query), idf);
+  const queryLower = query.toLowerCase();
+  return chunks.map((chunk, i) => ({
+    chunkId: chunk.chunkId,
+    documentId: chunk.documentId,
+    documentTitle: chunk.documentTitle,
+    chunkIndex: chunk.chunkIndex,
+    text: chunk.text,
+    manufacturer: chunk.manufacturer ?? null,
+    model: chunk.model ?? null,
+    sourceType: chunk.sourceType ?? 'pdf',
+    sourceUrl: chunk.sourceUrl ?? null,
+    page: chunk.page ?? null,
+    section: chunk.section ?? null,
+    score: cosineSimilarity(queryVec, tfidfVector(chunkTokenLists[i], idf)) + modelMatchBonus(chunk, queryLower),
+  }));
+}
+
 /**
  * Pure ranking function — no DB dependency, so it's directly unit-testable
- * and directly reusable by the eval harness with fixture chunks.
+ * and directly reusable by the eval harness with fixture chunks. Always
+ * rebuilds the tokens/idf index from the chunks it's given (no caching
+ * here) — retrieve() below is the cached, DB-backed path used by routes.
  * @param {string} query
  * @param {{ chunkId, documentId, documentTitle, chunkIndex, text, manufacturer?, model?, sourceType?, sourceUrl?, page?, section? }[]} chunks
  * @param {number} [k]
@@ -92,27 +116,9 @@ function modelMatchBonus(chunk, queryLower) {
  */
 export function rankChunks(query, chunks, k = 3) {
   if (!chunks.length) return [];
-
   const chunkTokenLists = chunks.map((c) => tokenize(c.text));
   const idf = buildIdf(chunkTokenLists);
-  const queryVec = tfidfVector(tokenize(query), idf);
-  const queryLower = query.toLowerCase();
-
-  return chunks
-    .map((chunk, i) => ({
-      chunkId: chunk.chunkId,
-      documentId: chunk.documentId,
-      documentTitle: chunk.documentTitle,
-      chunkIndex: chunk.chunkIndex,
-      text: chunk.text,
-      manufacturer: chunk.manufacturer ?? null,
-      model: chunk.model ?? null,
-      sourceType: chunk.sourceType ?? 'pdf',
-      sourceUrl: chunk.sourceUrl ?? null,
-      page: chunk.page ?? null,
-      section: chunk.section ?? null,
-      score: cosineSimilarity(queryVec, tfidfVector(chunkTokenLists[i], idf)) + modelMatchBonus(chunk, queryLower),
-    }))
+  return scoreChunks(chunks, chunkTokenLists, idf, query)
     .filter((r) => r.score >= SIMILARITY_THRESHOLD)
     .sort((a, b) => b.score - a.score)
     .slice(0, k);
@@ -144,11 +150,46 @@ export function fetchCandidateChunks(taskType) {
   }));
 }
 
+// Performance: a verification with N `needsReference` fields previously
+// re-fetched every chunk for the task_type AND rebuilt the whole TF-IDF
+// index (tokenizing every chunk, computing IDF over the full corpus) from
+// scratch on EVERY call — including within a single verification request
+// looping over its fields. The corpus barely changes between requests (only
+// on a knowledge upload), so it's cached per task_type instead; only the
+// (cheap) per-query vector and cosine-similarity pass still runs fresh.
+const corpusIndexCache = new Map(); // taskType -> { chunks, tokenLists, idf }
+
+function getCorpusIndex(taskType) {
+  const cached = corpusIndexCache.get(taskType);
+  if (cached) return cached;
+  const chunks = fetchCandidateChunks(taskType);
+  const tokenLists = chunks.map((c) => tokenize(c.text));
+  const idf = buildIdf(tokenLists);
+  const index = { chunks, tokenLists, idf };
+  corpusIndexCache.set(taskType, index);
+  return index;
+}
+
+/** Call after any knowledge_documents/knowledge_chunks write — a stale
+ * cached corpus would silently miss a just-uploaded document. Pass a
+ * task_type to invalidate just that one (cheaper, and correct here since a
+ * document's task_type never changes after upload); omit it to clear
+ * everything. */
+export function invalidateRetrievalCache(taskType) {
+  if (taskType) corpusIndexCache.delete(taskType);
+  else corpusIndexCache.clear();
+}
+
 /**
  * @param {{ taskType: string, query: string, k?: number }} input
  */
 export function retrieve({ taskType, query, k = 3 }) {
-  return rankChunks(query, fetchCandidateChunks(taskType), k);
+  const { chunks, tokenLists, idf } = getCorpusIndex(taskType);
+  if (!chunks.length) return [];
+  return scoreChunks(chunks, tokenLists, idf, query)
+    .filter((r) => r.score >= SIMILARITY_THRESHOLD)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, k);
 }
 
 // ---------------------------------------------------------------------------
