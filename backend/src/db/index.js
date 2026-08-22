@@ -6,7 +6,11 @@ import { SCHEMA_SQL } from './schema.js';
 import { seedChecklists } from './seed.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, '..', '..', 'data'); // backend/data
+// DATA_DIR is overridable so a deploy can point it at a mounted persistent
+// volume (SQLite + uploads both need a writable disk that survives
+// redeploys — see README's Deployment section). Defaults to backend/data,
+// unchanged from before this override existed.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', '..', 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, 'realitycheck.sqlite');

@@ -13,7 +13,10 @@ import { getTaskOr404, logAgentRun, serializeEvidence } from './helpers.js';
 
 const router = Router({ mergeParams: true });
 
-export const DATA_DIR = path.join(process.cwd(), 'data');
+// Same DATA_DIR override as db/index.js — must resolve to the same physical
+// directory so evidence files and the DB row that references them live on
+// the same disk.
+export const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
