@@ -32,6 +32,28 @@ Technician evidence and reference knowledge are **two disjoint systems** — a
 manufacturer manual is never treated as technician evidence, and a
 technician's job card is never treated as an authoritative spec.
 
+<details>
+<summary>Simplified decision-flow (Mermaid)</summary>
+
+```mermaid
+flowchart TD
+    A[Technician voice / text claim] --> D[Extraction: Claude, or heuristic fallback]
+    B[Technician photo/document evidence] --> D
+    D --> E[Structured evidence]
+    F[Supervisor-uploaded knowledge base] --> G[RAG retrieval — TF-IDF]
+    E -->|field-aware query| G
+    G --> H[Citation, if found above threshold]
+    E --> I[Deterministic verifier]
+    H --> I
+    I --> J{Decision}
+    J --> K[VERIFIED]
+    J --> L[NEED_MORE_EVIDENCE]
+    J --> M[CONFLICT_HUMAN_REVIEW]
+    J --> N[INSUFFICIENT_EVIDENCE]
+```
+
+</details>
+
 ## Walkthrough
 
 A real conflict caught end to end: a reported reading falls outside the RO
