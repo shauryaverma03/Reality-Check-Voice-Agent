@@ -5,6 +5,7 @@ import checklistsRouter from './routes/checklists.js';
 import knowledgeRouter from './routes/knowledge.js';
 import { UPLOAD_DIR } from './routes/evidence.js'; // same DATA_DIR-overridable dir evidence.js writes into
 import './db/index.js'; // side effect: creates + seeds the SQLite schema
+import { ingestKnowledge } from './rag/ingest.js';
 
 const app = express();
 app.use(cors());
@@ -32,3 +33,16 @@ app.listen(PORT, () => {
   console.log(`RealityCheck backend listening on http://localhost:${PORT}`);
   console.log(`Extraction mode: ${process.env.ANTHROPIC_API_KEY ? 'Claude API' : 'heuristic fallback (no ANTHROPIC_API_KEY set)'}`);
 });
+
+// Opt-in, off by default (local dev never wants this — node --watch would
+// re-run it, and every fetch, on every save). For a host with no
+// persistent disk (e.g. Render's free tier), the DB resets on every
+// restart, silently emptying the knowledge base; set
+// AUTO_INGEST_KNOWLEDGE=true there so it's always freshly seeded.
+// Runs after the server is already listening so a slow/unreachable web
+// source can never delay or block the app from serving requests.
+if (process.env.AUTO_INGEST_KNOWLEDGE === 'true') {
+  ingestKnowledge().catch((err) => {
+    console.error('[auto-ingest] knowledge ingestion failed (server keeps running):', err.message);
+  });
+}

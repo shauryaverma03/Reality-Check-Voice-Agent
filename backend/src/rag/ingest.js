@@ -19,6 +19,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { db } from '../db/index.js';
 import { extractPages } from './pdf.js';
@@ -213,7 +214,11 @@ async function ingestWebForService(taskType) {
   return { sources: indexed, chunks: totalChunks };
 }
 
-async function main() {
+// Exported (not just run as a script) so server.js can trigger it on boot
+// when AUTO_INGEST_KNOWLEDGE=true — useful on a host with no persistent
+// disk, where the DB (and therefore the knowledge index) resets on every
+// restart. Safe to call repeatedly: delete-then-reinsert, never duplicates.
+export async function ingestKnowledge() {
   console.log('\nRealityCheck knowledge ingestion\n');
   console.log('PDF:');
 
@@ -255,7 +260,15 @@ async function main() {
   console.log(`\nTotal: ${totalDocs} document(s)/source(s), ${totalChunks} chunk(s)\n`);
 }
 
-main().catch((err) => {
-  console.error('[ingest] fatal error:', err);
-  process.exitCode = 1;
-});
+// Only auto-run when this file is executed directly (npm run
+// ingest:knowledge) — importing ingestKnowledge from server.js must not
+// trigger a second, implicit run. process.argv[1] is whatever path form
+// the script was invoked with (often relative, e.g. via `npm run`), so it
+// has to go through pathToFileURL rather than a raw string comparison —
+// import.meta.url is always an absolute file:// URL.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  ingestKnowledge().catch((err) => {
+    console.error('[ingest] fatal error:', err);
+    process.exitCode = 1;
+  });
+}
