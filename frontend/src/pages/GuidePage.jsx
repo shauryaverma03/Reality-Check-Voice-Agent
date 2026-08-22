@@ -116,7 +116,7 @@ export default function GuidePage() {
           </li>
           <li>
             <strong>Run Verification.</strong> RealityCheck checks everything you've submitted against the service's
-            checklist. You'll get one of five outcomes (see <a href="#decisions">Understanding the decision</a>{' '}
+            checklist. You'll get one of six outcomes (see <a href="#decisions">Understanding the decision</a>{' '}
             below).
           </li>
           <li>
@@ -163,7 +163,8 @@ export default function GuidePage() {
       <section className="section">
         <h2>How image evidence is actually checked</h2>
         <p className="muted">
-          An uploaded photo is never assumed valid just because a file exists. Two separate checks run on it:
+          An uploaded photo is never assumed valid just because a file exists — a file existing only proves a file
+          existing. Three separate checks run on it:
         </p>
         <ul className="guide-steps">
           <li>
@@ -173,6 +174,20 @@ export default function GuidePage() {
             signals, not a guess — and flags anything implausibly small. Either way, an unusable photo gets marked{' '}
             <span className="status-pill status-image_unclear">IMAGE UNCLEAR</span> instead of silently counting as
             valid evidence.
+          </li>
+          <li>
+            <strong>Does it show the right equipment?</strong> When AI is available, the vision call is told which
+            service this job is for and explicitly checks the photo actually shows that kind of equipment — an AC
+            unit photographed for an RO job's required evidence is rejected the same way a blurry photo is, even
+            though the image itself might be perfectly clear.
+          </li>
+          <li>
+            <strong>Was the content actually verified?</strong> A photo that passes the structural check is NOT the
+            same as one whose content was checked — only a real AI vision call does that. Without one, a required
+            photo field is marked{' '}
+            <span className="status-pill status-insufficient_image_evidence">IMAGE NOT VERIFIED</span> rather than
+            silently accepted, and a job can never reach VERIFIED while that's true. This is deliberate: an uploaded
+            file existing was never sufficient evidence on its own.
           </li>
           <li>
             <strong>Does it match the claim?</strong> Where AI reads a number or ID off a photo (a gauge, a
@@ -227,6 +242,10 @@ export default function GuidePage() {
             <span className="status-pill status-image_unclear">IMAGE UNCLEAR</span>
             <p className="muted">A required photo was uploaded, but it's too blurry, dark, low-resolution, or off-subject to actually verify anything against. Different from missing — something was submitted, it just can't be trusted yet. Re-upload a clearer photo and re-verify.</p>
           </div>
+          <div className="decision-card decision-insufficient_image_evidence">
+            <span className="status-pill status-insufficient_image_evidence">IMAGE NOT VERIFIED</span>
+            <p className="muted">A required photo looks structurally fine, but nobody ever actually checked its content — no AI vision call ran. An uploaded file existing is never treated as proof of what it shows, so this can never resolve to VERIFIED on its own. Enable AI verification, or have a supervisor confirm the evidence manually.</p>
+          </div>
           <div className="decision-card decision-conflict">
             <span className="status-pill status-conflict">CONFLICT — HUMAN REVIEW</span>
             <p className="muted">A reading is outside spec, or the claim and the evidence disagree by more than measurement noise (e.g. the technician says 120 PSI but the photo shows 180 PSI). This always needs a human to look, not another automatic retry.</p>
@@ -274,6 +293,10 @@ export default function GuidePage() {
               <tr>
                 <td><span className="field-status field-status-unclear">Image unclear</span></td>
                 <td>A photo was uploaded for this field, but it's flagged as unusable (blurry, dark, low-resolution, or off-subject) — evidence exists, but it isn't trustworthy.</td>
+              </tr>
+              <tr>
+                <td><span className="field-status field-status-content_unverified">Content not verified</span></td>
+                <td>The photo looks structurally fine, but no AI vision call ever checked what it actually shows — never counted as verified evidence on its own, regardless of how plausible the file looks.</td>
               </tr>
             </tbody>
           </table>
@@ -338,10 +361,14 @@ export default function GuidePage() {
         <dl className="faq">
           <dt>Do I need an API key to try this?</dt>
           <dd>
-            No. Without <code>ANTHROPIC_API_KEY</code> set, voice claims are parsed by a heuristic regex fallback,
-            and photos skip field-value OCR (no guessing a reading without a vision model) but still get a real,
-            deterministic quality check on file size and pixel dimensions — the full loop, including all five
-            decisions, still works.
+            No — the app runs end to end without one. Voice claims are parsed by a heuristic regex fallback, and
+            photos get a real, deterministic quality check on file size and pixel dimensions (no field-value OCR or
+            equipment-identity check without a vision model — that's not guessed at either). One honest
+            consequence: without AI, a required photo's <em>content</em> is never actually verified, so a checklist
+            with required photo evidence cannot reach VERIFIED — it correctly settles on{' '}
+            <span className="status-pill status-insufficient_image_evidence">IMAGE NOT VERIFIED</span> instead. That's
+            deliberate, not a limitation to work around: an uploaded file existing was never meant to count as proof
+            of what it shows.
           </dd>
           <dt>Why does RealityCheck ask for multiple photos?</dt>
           <dd>

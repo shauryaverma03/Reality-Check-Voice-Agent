@@ -48,17 +48,19 @@ function tasksInRange(from, to) {
  * a top-level decision (CONFLICT_HUMAN_REVIEW covers both contradiction and
  * out_of_range). */
 function classifyFields(fieldsJson) {
-  if (!fieldsJson) return { hasMismatch: false, hasOutOfRange: false, hasUnclear: false };
+  const empty = { hasMismatch: false, hasOutOfRange: false, hasUnclear: false, hasContentUnverified: false };
+  if (!fieldsJson) return empty;
   let fields;
   try {
     fields = JSON.parse(fieldsJson);
   } catch {
-    return { hasMismatch: false, hasOutOfRange: false, hasUnclear: false };
+    return empty;
   }
   return {
     hasMismatch: fields.some((f) => f.mismatch),
     hasOutOfRange: fields.some((f) => f.status === 'out_of_range'),
     hasUnclear: fields.some((f) => f.status === 'unclear'),
+    hasContentUnverified: fields.some((f) => f.status === 'content_unverified'),
   };
 }
 
@@ -70,11 +72,12 @@ function classifyFields(fieldsJson) {
  */
 function suspiciousReasons(task, repeatedByTechnician) {
   const reasons = [];
-  const { hasMismatch, hasOutOfRange, hasUnclear } = classifyFields(task.latest_fields_json);
+  const { hasMismatch, hasOutOfRange, hasUnclear, hasContentUnverified } = classifyFields(task.latest_fields_json);
 
   if (hasMismatch) reasons.push('Technician claim does not match uploaded evidence — requires supervisor review');
   if (hasOutOfRange) reasons.push('A reading is outside the expected specification range');
   if (hasUnclear) reasons.push('Evidence image is unclear or insufficient to verify');
+  if (hasContentUnverified) reasons.push('Required photo evidence was never content-verified (no AI check ran) — confirm manually before relying on it');
   if (typeof task.latest_score === 'number' && task.latest_score < LOW_SCORE_THRESHOLD) {
     reasons.push(`Unusually low evidence score (${task.latest_score}/100)`);
   }
@@ -97,10 +100,19 @@ function buildSummary(from, to) {
     VERIFIED: 'verified',
     NEED_MORE_EVIDENCE: 'need_more_evidence',
     IMAGE_UNCLEAR: 'image_unclear',
+    INSUFFICIENT_IMAGE_EVIDENCE: 'insufficient_image_evidence',
     CONFLICT_HUMAN_REVIEW: 'conflict',
     INSUFFICIENT_EVIDENCE: 'insufficient_evidence',
   };
-  const byDecision = { verified: 0, need_more_evidence: 0, image_unclear: 0, conflict: 0, insufficient_evidence: 0, pending: 0 };
+  const byDecision = {
+    verified: 0,
+    need_more_evidence: 0,
+    image_unclear: 0,
+    insufficient_image_evidence: 0,
+    conflict: 0,
+    insufficient_evidence: 0,
+    pending: 0,
+  };
   let outOfRangeCount = 0;
   let scoredCount = 0;
   let scoreSum = 0;
@@ -201,8 +213,9 @@ router.get('/export.csv', (req, res) => {
         // malformed fields_json on an old row, or an unrecognized task_type — leave blank rather than fail the whole export
       }
     }
-    const { hasMismatch, hasOutOfRange, hasUnclear } = classifyFields(t.latest_fields_json);
-    const suspicious = hasMismatch || hasOutOfRange || hasUnclear || (typeof t.latest_score === 'number' && t.latest_score < LOW_SCORE_THRESHOLD);
+    const { hasMismatch, hasOutOfRange, hasUnclear, hasContentUnverified } = classifyFields(t.latest_fields_json);
+    const suspicious =
+      hasMismatch || hasOutOfRange || hasUnclear || hasContentUnverified || (typeof t.latest_score === 'number' && t.latest_score < LOW_SCORE_THRESHOLD);
 
     rows.push(
       [

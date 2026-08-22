@@ -30,6 +30,7 @@ const DECISIONS = [
   { key: 'verified', icon: '✅', label: 'VERIFIED', desc: 'Everything present, consistent, in range. Comes with an evidence score out of 100.' },
   { key: 'need_more_evidence', icon: '❓', label: 'NEED_MORE_EVIDENCE', desc: 'Something required is missing — RealityCheck asks one targeted follow-up question.' },
   { key: 'image_unclear', icon: '🖼', label: 'IMAGE_UNCLEAR', desc: 'A photo was uploaded but is too blurry, dark, or low-resolution to actually verify anything against.' },
+  { key: 'insufficient_image_evidence', icon: '🔍', label: 'INSUFFICIENT_IMAGE_EVIDENCE', desc: "A photo looks fine, but its content was never actually checked (no AI vision call ran) — an uploaded file existing is never treated as proof of what it shows." },
   { key: 'conflict', icon: '🚩', label: 'CONFLICT_HUMAN_REVIEW', desc: 'A reading is out of spec, or the claim and the evidence disagree beyond measurement noise. Escalated, not guessed at.' },
   { key: 'insufficient_evidence', icon: '📖', label: 'INSUFFICIENT_EVIDENCE', desc: 'A field needed reference backing and none was found in the indexed documents. Never silently passed.' },
 ];
@@ -191,7 +192,7 @@ export default function HomePage() {
       </section>
 
       <section className="section-block">
-        <h2 className="section-title">Every job ends in one of five decisions</h2>
+        <h2 className="section-title">Every job ends in one of six decisions</h2>
         <div className="decision-grid">
           {DECISIONS.map((d) => (
             <TiltCard key={d.key} className={`decision-card decision-${d.key}`} maxTilt={5}>

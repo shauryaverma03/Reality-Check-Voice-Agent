@@ -15,6 +15,7 @@ const SUMMARY_CARDS = [
   { key: 'verified', label: 'Verified', statuses: ['verified'], tone: 'ok' },
   { key: 'need_more_evidence', label: 'Need More Evidence', statuses: ['need_more_evidence'], tone: 'warn' },
   { key: 'image_unclear', label: 'Image Unclear', statuses: ['image_unclear'], tone: 'warn' },
+  { key: 'insufficient_image_evidence', label: 'Image Not Verified', statuses: ['insufficient_image_evidence'], tone: 'warn' },
   { key: 'conflict', label: 'Human Review', statuses: ['conflict'], tone: 'conflict' },
   { key: 'insufficient_evidence', label: 'Insufficient Evidence', statuses: ['insufficient_evidence'], tone: 'insufficient' },
 ];
@@ -27,6 +28,7 @@ const DECISION_TO_STATUS = {
   VERIFIED: 'verified',
   NEED_MORE_EVIDENCE: 'need_more_evidence',
   IMAGE_UNCLEAR: 'image_unclear',
+  INSUFFICIENT_IMAGE_EVIDENCE: 'insufficient_image_evidence',
   CONFLICT_HUMAN_REVIEW: 'conflict',
   INSUFFICIENT_EVIDENCE: 'insufficient_evidence',
 };
@@ -178,6 +180,10 @@ export default function SupervisorDashboard() {
               <div className="report-stat">
                 <div className="report-stat-value">{report.by_decision.image_unclear}</div>
                 <div className="report-stat-label">Unclear image</div>
+              </div>
+              <div className="report-stat">
+                <div className="report-stat-value">{report.by_decision.insufficient_image_evidence}</div>
+                <div className="report-stat-label">Image not verified</div>
               </div>
               <div className="report-stat">
                 <div className="report-stat-value">{report.by_decision.conflict}</div>

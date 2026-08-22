@@ -265,7 +265,18 @@ const KNOWN_QUALITY_ISSUES = new Set([
   'insufficient_detail',
 ]);
 
-function buildPhotoSystemPrompt(checklist, role) {
+// What this photo's role SHOULD show, per service — used to build an
+// explicit "does the equipment in this photo match the job" instruction.
+// Keyed by task_type since that's what routes/evidence.js already has on
+// hand (the task row) without any new lookup.
+const SERVICE_EQUIPMENT_LABEL = {
+  'ac-service': 'a split or window air conditioner (indoor/outdoor unit, nameplate, or a gauge/thermometer reading)',
+  'ro-service': 'an RO / water purifier (its housing, nameplate, or a replaced filter cartridge)',
+  'fridge-service': 'a refrigerator (its cabinet, nameplate, or an interior/thermometer reading)',
+  'washer-service': 'a washing machine (its housing, nameplate, or its control panel/error display)',
+};
+
+function buildPhotoSystemPrompt(checklist, role, taskType) {
   const lines = checklist
     .filter((f) => f.type === 'id' || f.type === 'number')
     .map((f) =>
@@ -273,37 +284,47 @@ function buildPhotoSystemPrompt(checklist, role) {
         ? `- "${f.key}": number — a ${f.label.toLowerCase()} reading${f.unit ? ` in ${f.unit}` : ''}, if visible`
         : `- "${f.key}": string — a printed ${f.label.toLowerCase()}, if visible`
     );
+  const expectedEquipment = SERVICE_EQUIPMENT_LABEL[taskType];
+  const subjectCheck = expectedEquipment
+    ? `\n\nThis job is for ${expectedEquipment}. Before anything else, check whether the photo actually shows equipment consistent with that — a photo of a completely different type of appliance (e.g. an air conditioner uploaded for a washing-machine job) is NOT valid evidence for this job, no matter how clear the photo is. If the equipment shown clearly does NOT match, set "readable": false and "quality_issue": "wrong_subject" — do not extract any fields from it.`
+    : '';
   return `You read structured facts off a photo submitted as job evidence by a field technician (this one is tagged "${role}"). Respond with ONLY a JSON object — no prose, no markdown code fences.
 
 First assess whether the photo is actually usable as evidence:
 - "readable": true or false — false if the photo is blurry, extremely low resolution, unreadably dark/overexposed, or doesn't show enough of the relevant equipment/readout to check anything against.
-- "quality_issue": one of "blurry" | "dark" | "overexposed" | "low_resolution" | "wrong_subject" | "insufficient_detail", or null if readable is true.
+- "quality_issue": one of "blurry" | "dark" | "overexposed" | "low_resolution" | "wrong_subject" | "insufficient_detail", or null if readable is true.${subjectCheck}
 
-Then, ONLY if actually legible, extract these fields (include a key only if you can confidently read it — never invent or guess a value):
+Then, ONLY if actually legible AND showing the right equipment, extract these fields (include a key only if you can confidently read it — never invent or guess a value):
 ${lines.join('\n')}
 
 Respond with a single flat JSON object containing "readable", "quality_issue", and any of the extracted keys above that are legible.`;
 }
 
 /**
- * @param {{ buffer: Buffer, mimeType: string, role: string, checklist: Array }} input
+ * @param {{ buffer: Buffer, mimeType: string, role: string, checklist: Array, taskType?: string }} input
+ *   `taskType` (e.g. "ro-service") is optional but strongly recommended —
+ *   without it, the vision call can still judge blur/exposure/resolution
+ *   but has no basis to catch a photo of the wrong equipment entirely
+ *   (e.g. an AC unit uploaded against an RO job's required evidence).
  * @returns {Promise<{ data: object, source: 'claude' | 'none', quality: { readable: boolean, issue: string|null, note: string } }>}
  */
-export async function extractEvidenceFromPhoto({ buffer, mimeType, role, checklist }) {
+export async function extractEvidenceFromPhoto({ buffer, mimeType, role, checklist, taskType }) {
   const anthropic = getClient();
   if (!anthropic) {
-    // No vision model to judge readability with — fall back to a
+    // No vision model to judge readability OR subject with — fall back to a
     // deterministic, dependency-free structural check (file size / pixel
     // dimensions). Field-value OCR still isn't attempted without AI (no
-    // guessing), but the pipeline no longer blindly treats every upload as
-    // valid evidence regardless of content.
+    // guessing), and — critically — a structurally-fine file is NOT the
+    // same as a content-verified one: the caller (verifier.js) gates on
+    // `source` for exactly this reason, so this heuristic path can never by
+    // itself produce VERIFIED for a required photo field.
     return { data: {}, source: 'none', quality: heuristicImageQuality(buffer, mimeType) };
   }
   try {
     const response = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 300,
-      system: buildPhotoSystemPrompt(checklist, role),
+      system: buildPhotoSystemPrompt(checklist, role, taskType),
       messages: [
         {
           role: 'user',

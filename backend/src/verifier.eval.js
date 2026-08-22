@@ -33,8 +33,8 @@ testCase({
   name: 'all fields present, consistent, in range -> VERIFIED, score 100',
   claim: { data: { machine_id: '27', pressure: 4.2, temperature: 82 } },
   evidence: [
-    { role: 'serial_photo', data: { machine_id: '27' } },
-    { role: 'final_photo', data: {} },
+    { role: 'serial_photo', data: { machine_id: '27' }, extractionSource: 'claude' },
+    { role: 'final_photo', data: {}, extractionSource: 'claude' },
   ],
   expect: { decision: 'VERIFIED', score: 100 },
 });
@@ -46,7 +46,7 @@ testCase({
 testCase({
   name: 'missing machine_id -> NEED_MORE_EVIDENCE, asks about machine ID first',
   claim: { data: { pressure: 4.2, temperature: 82 } },
-  evidence: [{ role: 'serial_photo', data: {} }, { role: 'final_photo', data: {} }],
+  evidence: [{ role: 'serial_photo', data: {}, extractionSource: 'claude' }, { role: 'final_photo', data: {}, extractionSource: 'claude' }],
   expect: {
     decision: 'NEED_MORE_EVIDENCE',
     fieldStatuses: { machine_id: 'missing' },
@@ -57,7 +57,7 @@ testCase({
 testCase({
   name: 'missing pressure -> NEED_MORE_EVIDENCE, asks about pressure',
   claim: { data: { machine_id: '27', temperature: 82 } },
-  evidence: [{ role: 'serial_photo', data: {} }, { role: 'final_photo', data: {} }],
+  evidence: [{ role: 'serial_photo', data: {}, extractionSource: 'claude' }, { role: 'final_photo', data: {}, extractionSource: 'claude' }],
   expect: {
     decision: 'NEED_MORE_EVIDENCE',
     fieldStatuses: { pressure: 'missing' },
@@ -68,7 +68,7 @@ testCase({
 testCase({
   name: 'missing temperature -> NEED_MORE_EVIDENCE, asks about temperature',
   claim: { data: { machine_id: '27', pressure: 4.2 } },
-  evidence: [{ role: 'serial_photo', data: {} }, { role: 'final_photo', data: {} }],
+  evidence: [{ role: 'serial_photo', data: {}, extractionSource: 'claude' }, { role: 'final_photo', data: {}, extractionSource: 'claude' }],
   expect: {
     decision: 'NEED_MORE_EVIDENCE',
     fieldStatuses: { temperature: 'missing' },
@@ -79,7 +79,7 @@ testCase({
 testCase({
   name: 'missing serial_photo -> NEED_MORE_EVIDENCE, asks for the photo',
   claim: { data: { machine_id: '27', pressure: 4.2, temperature: 82 } },
-  evidence: [{ role: 'final_photo', data: {} }],
+  evidence: [{ role: 'final_photo', data: {}, extractionSource: 'claude' }],
   expect: {
     decision: 'NEED_MORE_EVIDENCE',
     fieldStatuses: { serial_photo: 'missing' },
@@ -90,7 +90,7 @@ testCase({
 testCase({
   name: 'missing final_photo -> NEED_MORE_EVIDENCE, asks for the photo',
   claim: { data: { machine_id: '27', pressure: 4.2, temperature: 82 } },
-  evidence: [{ role: 'serial_photo', data: {} }],
+  evidence: [{ role: 'serial_photo', data: {}, extractionSource: 'claude' }],
   expect: {
     decision: 'NEED_MORE_EVIDENCE',
     fieldStatuses: { final_photo: 'missing' },
@@ -105,7 +105,7 @@ testCase({
 testCase({
   name: 'machine 27 (voice) vs 28 (nameplate photo) -> CONTRADICTION, CONFLICT_HUMAN_REVIEW',
   claim: { data: { machine_id: '27', pressure: 4.2, temperature: 82 } },
-  evidence: [{ role: 'serial_photo', data: { machine_id: '28' } }, { role: 'final_photo', data: {} }],
+  evidence: [{ role: 'serial_photo', data: { machine_id: '28' }, extractionSource: 'claude' }, { role: 'final_photo', data: {}, extractionSource: 'claude' }],
   expect: {
     decision: 'CONFLICT_HUMAN_REVIEW',
     fieldStatuses: { machine_id: 'contradiction' },
@@ -116,8 +116,8 @@ testCase({
   name: 'temperature 82 (voice) vs 96 (gauge photo) -> CONTRADICTION, CONFLICT_HUMAN_REVIEW',
   claim: { data: { machine_id: '27', pressure: 4.2, temperature: 82 } },
   evidence: [
-    { role: 'serial_photo', data: { machine_id: '27' } },
-    { role: 'final_photo', data: { temperature: 96 } },
+    { role: 'serial_photo', data: { machine_id: '27' }, extractionSource: 'claude' },
+    { role: 'final_photo', data: { temperature: 96 }, extractionSource: 'claude' },
   ],
   expect: {
     decision: 'CONFLICT_HUMAN_REVIEW',
@@ -128,7 +128,7 @@ testCase({
 testCase({
   name: 'single pressure reading 5.0 bar, outside 3.8-4.5 -> OUT_OF_RANGE, CONFLICT_HUMAN_REVIEW',
   claim: { data: { machine_id: '27', pressure: 5.0, temperature: 82 } },
-  evidence: [{ role: 'serial_photo', data: {} }, { role: 'final_photo', data: {} }],
+  evidence: [{ role: 'serial_photo', data: {}, extractionSource: 'claude' }, { role: 'final_photo', data: {}, extractionSource: 'claude' }],
   expect: {
     decision: 'CONFLICT_HUMAN_REVIEW',
     fieldStatuses: { pressure: 'out_of_range' },
@@ -143,8 +143,8 @@ testCase({
   name: 'pressure 4.2 (voice) vs 4.25 (photo) — within noise band -> ok, VERIFIED',
   claim: { data: { machine_id: '27', pressure: 4.2, temperature: 82 } },
   evidence: [
-    { role: 'serial_photo', data: { machine_id: '27' } },
-    { role: 'final_photo', data: { pressure: 4.25 } },
+    { role: 'serial_photo', data: { machine_id: '27' }, extractionSource: 'claude' },
+    { role: 'final_photo', data: { pressure: 4.25 }, extractionSource: 'claude' },
   ],
   expect: { decision: 'VERIFIED', fieldStatuses: { pressure: 'ok' } },
 });
@@ -156,14 +156,14 @@ testCase({
 testCase({
   name: 'pressure exactly at lower boundary 3.8 -> borderline, still VERIFIED',
   claim: { data: { machine_id: '27', pressure: 3.8, temperature: 82 } },
-  evidence: [{ role: 'serial_photo', data: {} }, { role: 'final_photo', data: {} }],
+  evidence: [{ role: 'serial_photo', data: {}, extractionSource: 'claude' }, { role: 'final_photo', data: {}, extractionSource: 'claude' }],
   expect: { decision: 'VERIFIED', fieldStatuses: { pressure: 'borderline' } },
 });
 
 testCase({
   name: 'temperature exactly at upper boundary 85 -> borderline, still VERIFIED',
   claim: { data: { machine_id: '27', pressure: 4.2, temperature: 85 } },
-  evidence: [{ role: 'serial_photo', data: {} }, { role: 'final_photo', data: {} }],
+  evidence: [{ role: 'serial_photo', data: {}, extractionSource: 'claude' }, { role: 'final_photo', data: {}, extractionSource: 'claude' }],
   expect: { decision: 'VERIFIED', fieldStatuses: { temperature: 'borderline' } },
 });
 
@@ -175,8 +175,8 @@ testCase({
   name: 'pressure as string "4.2 bar" (voice) vs number 4.2 (photo) -> coerces and matches',
   claim: { data: { machine_id: '27', pressure: '4.2 bar', temperature: 82 } },
   evidence: [
-    { role: 'serial_photo', data: { machine_id: '27' } },
-    { role: 'final_photo', data: { pressure: 4.2 } },
+    { role: 'serial_photo', data: { machine_id: '27' }, extractionSource: 'claude' },
+    { role: 'final_photo', data: { pressure: 4.2 }, extractionSource: 'claude' },
   ],
   expect: { decision: 'VERIFIED', fieldStatuses: { pressure: 'ok' } },
 });
@@ -185,8 +185,8 @@ testCase({
   name: 'machine_id whitespace/case differences ("Machine 27" vs "  machine   27 ") -> normalize equal, ok',
   claim: { data: { machine_id: 'Machine 27', pressure: 4.2, temperature: 82 } },
   evidence: [
-    { role: 'serial_photo', data: { machine_id: '  machine   27 ' } },
-    { role: 'final_photo', data: {} },
+    { role: 'serial_photo', data: { machine_id: '  machine   27 ' }, extractionSource: 'claude' },
+    { role: 'final_photo', data: {}, extractionSource: 'claude' },
   ],
   expect: { decision: 'VERIFIED', fieldStatuses: { machine_id: 'ok' } },
 });
@@ -198,7 +198,7 @@ testCase({
 testCase({
   name: 'pressure 4.47 (0.03 from the 4.5 edge) -> borderline, VERIFIED, score penalized by 5',
   claim: { data: { machine_id: '27', pressure: 4.47, temperature: 82 } },
-  evidence: [{ role: 'serial_photo', data: {} }, { role: 'final_photo', data: {} }],
+  evidence: [{ role: 'serial_photo', data: {}, extractionSource: 'claude' }, { role: 'final_photo', data: {}, extractionSource: 'claude' }],
   expect: { decision: 'VERIFIED', score: 95, fieldStatuses: { pressure: 'borderline' } },
 });
 
@@ -209,7 +209,7 @@ testCase({
 testCase({
   name: 'contradiction + a separately missing field -> CONFLICT wins over NEED_MORE_EVIDENCE',
   claim: { data: { machine_id: '27', pressure: 4.2 } }, // temperature missing entirely
-  evidence: [{ role: 'serial_photo', data: { machine_id: '28' } }, { role: 'final_photo', data: {} }],
+  evidence: [{ role: 'serial_photo', data: { machine_id: '28' }, extractionSource: 'claude' }, { role: 'final_photo', data: {}, extractionSource: 'claude' }],
   expect: {
     decision: 'CONFLICT_HUMAN_REVIEW',
     fieldStatuses: { machine_id: 'contradiction', temperature: 'missing' },
@@ -219,7 +219,7 @@ testCase({
 testCase({
   name: 'two missing required fields -> follow-up asks about the earlier one in checklist order',
   claim: { data: { machine_id: '27', temperature: 82 } }, // pressure missing, and serial_photo missing
-  evidence: [{ role: 'final_photo', data: {} }],
+  evidence: [{ role: 'final_photo', data: {}, extractionSource: 'claude' }],
   expect: {
     decision: 'NEED_MORE_EVIDENCE',
     fieldStatuses: { pressure: 'missing', serial_photo: 'missing' },
@@ -234,7 +234,7 @@ testCase({
 testCase({
   name: 'photo evidence item with no extracted data still satisfies a photo field',
   claim: { data: { machine_id: '27', pressure: 4.2, temperature: 82 } },
-  evidence: [{ role: 'serial_photo' }, { role: 'final_photo' }], // no `.data` at all
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }, { role: 'final_photo', extractionSource: 'claude' }], // no `.data` at all
   expect: { decision: 'VERIFIED', fieldStatuses: { serial_photo: 'ok', final_photo: 'ok' } },
 });
 
@@ -245,7 +245,7 @@ testCase({
 testCase({
   name: 'unreadable pressure value ("not a number") -> contradiction, CONFLICT_HUMAN_REVIEW',
   claim: { data: { machine_id: '27', pressure: 'not a number', temperature: 82 } },
-  evidence: [{ role: 'serial_photo', data: {} }, { role: 'final_photo', data: {} }],
+  evidence: [{ role: 'serial_photo', data: {}, extractionSource: 'claude' }, { role: 'final_photo', data: {}, extractionSource: 'claude' }],
   expect: { decision: 'CONFLICT_HUMAN_REVIEW', fieldStatuses: { pressure: 'contradiction' } },
 });
 
@@ -260,7 +260,7 @@ testCase({
     { key: 'notes', label: 'Technician notes', type: 'text', required: false },
   ],
   claim: { data: { machine_id: '27', pressure: 4.2, temperature: 82 } },
-  evidence: [{ role: 'serial_photo', data: {} }, { role: 'final_photo', data: {} }],
+  evidence: [{ role: 'serial_photo', data: {}, extractionSource: 'claude' }, { role: 'final_photo', data: {}, extractionSource: 'claude' }],
   expect: { decision: 'VERIFIED', score: 100, fieldStatuses: { notes: 'ok' } },
 });
 
@@ -278,7 +278,7 @@ testCase({
   checklist: RO_SERVICE_CHECKLIST,
   mode: 'withReferences',
   claim: { data: { machine_id: 'RO-9', tds_output: 90, filter_replaced: 'yes, new filter fitted' } },
-  evidence: [{ role: 'serial_photo' }, { role: 'filter_photo' }],
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }, { role: 'filter_photo', extractionSource: 'claude' }],
   references: {
     tds_output: {
       citation: { document_title: 'RO Service Manual', chunk_index: 0, snippet: 'Normal output TDS is 50-150 ppm.', score: 0.5 },
@@ -292,7 +292,7 @@ testCase({
   checklist: RO_SERVICE_CHECKLIST,
   mode: 'withReferences',
   claim: { data: { machine_id: 'RO-9', tds_output: 90, filter_replaced: 'yes' } },
-  evidence: [{ role: 'serial_photo' }],
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }],
   references: {
     tds_output: { citation: { document_title: 'RO Service Manual', chunk_index: 0, snippet: '...', score: 0.4 } },
   },
@@ -308,7 +308,7 @@ testCase({
   checklist: FRIDGE_SERVICE_CHECKLIST,
   mode: 'withReferences',
   claim: { data: { machine_id: 'F-3', internal_temperature: 15, cooling_verified: 'yes, cooling normally' } },
-  evidence: [{ role: 'serial_photo' }, { role: 'cooling_photo' }],
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }, { role: 'cooling_photo', extractionSource: 'claude' }],
   references: {
     internal_temperature: { citation: { document_title: 'Fridge Manual', chunk_index: 0, snippet: '...', score: 0.6 } },
   },
@@ -319,7 +319,7 @@ testCase({
   name: 'Washer: all fields present and consistent -> VERIFIED (error_code_photo is a photo field, not document)',
   checklist: WASHER_SERVICE_CHECKLIST,
   claim: { data: { machine_id: 'W-2', drainage_check: 'clear, no blockage', vibration_check: 'normal' } },
-  evidence: [{ role: 'serial_photo' }, { role: 'error_code_photo' }],
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }, { role: 'error_code_photo', extractionSource: 'claude' }],
   expect: { decision: 'VERIFIED', score: 100, fieldStatuses: { error_code_photo: 'ok' } },
 });
 
@@ -327,7 +327,7 @@ testCase({
   name: 'Wrong checklist: an AC-shaped claim run against the RO checklist -> missing fields, NEED_MORE_EVIDENCE (never a false VERIFIED)',
   checklist: RO_SERVICE_CHECKLIST,
   claim: { data: { machine_id: '5', pressure: 4.2, temperature: 82 } },
-  evidence: [{ role: 'serial_photo' }],
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }],
   expect: {
     decision: 'NEED_MORE_EVIDENCE',
     fieldStatuses: { tds_output: 'missing', filter_replaced: 'missing', filter_photo: 'missing' },
@@ -339,7 +339,7 @@ testCase({
   checklist: FRIDGE_SERVICE_CHECKLIST,
   mode: 'withReferences',
   claim: { data: { machine_id: 'F-3', internal_temperature: 5, cooling_verified: 'yes, cooling normally' } },
-  evidence: [{ role: 'serial_photo' }, { role: 'cooling_photo' }],
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }, { role: 'cooling_photo', extractionSource: 'claude' }],
   references: {
     internal_temperature: {
       citation: { document_title: 'Fridge Manual', chunk_index: 2, snippet: '2-8°C is normal for this unit.', score: 0.55 },
@@ -353,7 +353,7 @@ testCase({
   checklist: RO_SERVICE_CHECKLIST,
   mode: 'withReferences',
   claim: { data: { machine_id: 'RO-9', tds_output: 90, filter_replaced: 'yes' } },
-  evidence: [{ role: 'serial_photo' }, { role: 'filter_photo' }],
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }, { role: 'filter_photo', extractionSource: 'claude' }],
   references: {},
   expect: { decision: 'INSUFFICIENT_EVIDENCE', fieldStatuses: { tds_output: 'insufficient_evidence' }, citationCount: 0 },
 });
@@ -420,11 +420,11 @@ testCase({
 });
 
 testCase({
-  name: 'photo evidence with no quality signal at all (e.g. a non-image document) never gets marked unclear',
+  name: 'quality: null (e.g. a non-image upload) is never misrouted through the "unclear" branch — falls through to the content-verification check like any other photo',
   claim: { data: { machine_id: '27', pressure: 4.2, temperature: 82 } },
   evidence: [
-    { role: 'serial_photo', data: { machine_id: '27' }, quality: null },
-    { role: 'final_photo', data: {} },
+    { role: 'serial_photo', data: { machine_id: '27' }, quality: null, extractionSource: 'claude' },
+    { role: 'final_photo', data: {}, extractionSource: 'claude' },
   ],
   expect: { decision: 'VERIFIED', score: 100, fieldStatuses: { serial_photo: 'ok' } },
 });
@@ -442,7 +442,7 @@ testCase({
 testCase({
   name: 'TEST 7 (deterministic-layer contract): with no claim source at all for a field, verifier reports missing rather than guessing a value — the "never hallucinate" boundary this suite actually checks (AI-unavailable behavior itself is covered live in extract.js, not here, since this file is offline/no-network by design)',
   claim: { data: { machine_id: '27' } }, // pressure/temperature never stated — nothing to extract, nothing invented
-  evidence: [{ role: 'serial_photo', data: {} }, { role: 'final_photo', data: {} }],
+  evidence: [{ role: 'serial_photo', data: {}, extractionSource: 'claude' }, { role: 'final_photo', data: {}, extractionSource: 'claude' }],
   expect: {
     decision: 'NEED_MORE_EVIDENCE',
     fieldStatuses: { pressure: 'missing', temperature: 'missing' },
@@ -464,7 +464,7 @@ testCase({
   checklist: RO_SERVICE_CHECKLIST,
   taskContext: { unit_id: 'RO-2048' },
   claim: { data: { tds_output: 85, filter_replaced: true } }, // realistic: extraction genuinely found no machine_id token
-  evidence: [{ role: 'serial_photo' }, { role: 'filter_photo' }],
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }, { role: 'filter_photo', extractionSource: 'claude' }],
   expect: {
     decision: 'VERIFIED',
     score: 100,
@@ -477,7 +477,7 @@ testCase({
   checklist: RO_SERVICE_CHECKLIST,
   taskContext: { unit_id: 'RO-2048' },
   claim: { data: { machine_id: 'RO-2048', tds_output: 85, filter_replaced: true } },
-  evidence: [{ role: 'serial_photo' }, { role: 'filter_photo' }],
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }, { role: 'filter_photo', extractionSource: 'claude' }],
   expect: { decision: 'VERIFIED', fieldStatuses: { machine_id: 'ok' } },
 });
 
@@ -486,7 +486,7 @@ testCase({
   checklist: RO_SERVICE_CHECKLIST,
   taskContext: { unit_id: 'RO-2048' },
   claim: { data: { machine_id: 'RO-9999', tds_output: 85, filter_replaced: true } },
-  evidence: [{ role: 'serial_photo' }, { role: 'filter_photo' }],
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }, { role: 'filter_photo', extractionSource: 'claude' }],
   expect: { decision: 'CONFLICT_HUMAN_REVIEW', fieldStatuses: { machine_id: 'contradiction' } },
 });
 
@@ -495,7 +495,7 @@ testCase({
   checklist: AC_SERVICE_CHECKLIST,
   taskContext: { unit_id: 'AC-1024' },
   claim: { data: { pressure: 4.2, temperature: 80 } },
-  evidence: [{ role: 'serial_photo' }, { role: 'final_photo' }],
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }, { role: 'final_photo', extractionSource: 'claude' }],
   expect: { decision: 'VERIFIED', fieldStatuses: { machine_id: 'ok' } },
 });
 
@@ -504,7 +504,7 @@ testCase({
   checklist: FRIDGE_SERVICE_CHECKLIST,
   taskContext: { unit_id: 'FR-1001' },
   claim: { data: { internal_temperature: 5, cooling_verified: true } },
-  evidence: [{ role: 'serial_photo' }, { role: 'cooling_photo' }],
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }, { role: 'cooling_photo', extractionSource: 'claude' }],
   expect: { decision: 'VERIFIED', fieldStatuses: { machine_id: 'ok' } },
 });
 
@@ -513,7 +513,7 @@ testCase({
   checklist: WASHER_SERVICE_CHECKLIST,
   taskContext: { unit_id: 'WM-302' },
   claim: { data: { drainage_check: true, vibration_check: true } },
-  evidence: [{ role: 'serial_photo' }, { role: 'error_code_photo' }],
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }, { role: 'error_code_photo', extractionSource: 'claude' }],
   expect: { decision: 'VERIFIED', fieldStatuses: { machine_id: 'ok' } },
 });
 
@@ -522,7 +522,7 @@ testCase({
   checklist: RO_SERVICE_CHECKLIST,
   taskContext: { unit_id: null },
   claim: { data: { tds_output: 85, filter_replaced: true } },
-  evidence: [{ role: 'serial_photo' }, { role: 'filter_photo' }],
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }, { role: 'filter_photo', extractionSource: 'claude' }],
   expect: { decision: 'NEED_MORE_EVIDENCE', fieldStatuses: { machine_id: 'missing' } },
 });
 
@@ -532,23 +532,26 @@ testCase({
   taskContext: { unit_id: 'RO-2048' },
   claim: { data: { machine_id: 'RO-2048', tds_output: 85, filter_replaced: true } },
   evidence: [
-    { role: 'serial_photo', quality: { readable: false, issue: 'blurry' } }, // the original bad upload
-    { role: 'serial_photo', quality: { readable: true, issue: null } }, // the technician's replacement — this one should win
-    { role: 'filter_photo' },
+    { role: 'serial_photo', quality: { readable: false, issue: 'blurry' }, extractionSource: 'claude' }, // the original bad upload
+    { role: 'serial_photo', quality: { readable: true, issue: null }, extractionSource: 'claude' }, // the technician's replacement — this one should win
+    { role: 'filter_photo', extractionSource: 'claude' },
   ],
   expect: { decision: 'VERIFIED', fieldStatuses: { serial_photo: 'ok' } },
 });
 
 testCase({
-  name: 'A real vision call (extractionSource claude) marks the photo field content-verified; no-AI heuristic does not',
+  name: "CRITICAL: extractionSource claude actually verifies content; the no-AI heuristic path NEVER does, no matter how plausible the file looks — this is the fix for a real reported bug (an AC photo uploaded against an RO job's required evidence used to still score OK and produce a false VERIFIED/100)",
   checklist: RO_SERVICE_CHECKLIST,
   taskContext: { unit_id: 'RO-2048' },
   claim: { data: { machine_id: 'RO-2048', tds_output: 85, filter_replaced: true } },
   evidence: [
-    { role: 'serial_photo', quality: { readable: true, issue: null }, extractionSource: 'claude' },
-    { role: 'filter_photo', quality: { readable: true, issue: null }, extractionSource: 'none' },
+    { role: 'serial_photo', quality: { readable: true, issue: null }, extractionSource: 'claude' }, // AI actually verified this one
+    { role: 'filter_photo', quality: { readable: true, issue: null }, extractionSource: 'none' }, // structurally fine, but no AI call ever judged it — must NOT count as verified
   ],
-  expect: { decision: 'VERIFIED' },
+  expect: {
+    decision: 'INSUFFICIENT_IMAGE_EVIDENCE',
+    fieldStatuses: { serial_photo: 'ok', filter_photo: 'content_unverified' },
+  },
 });
 
 testCase({
@@ -556,8 +559,84 @@ testCase({
   checklist: RO_SERVICE_CHECKLIST,
   taskContext: { unit_id: 'RO-2048' },
   claim: { data: { machine_id: 'RO-2048', filter_replaced: true } }, // tds_output genuinely never stated
-  evidence: [{ role: 'serial_photo' }, { role: 'filter_photo' }],
+  evidence: [{ role: 'serial_photo', extractionSource: 'claude' }, { role: 'filter_photo', extractionSource: 'claude' }],
   expect: { decision: 'NEED_MORE_EVIDENCE', fieldStatuses: { tds_output: 'missing', machine_id: 'ok' } },
+});
+
+// ---------------------------------------------------------------------------
+// 45-49. Wrong-subject evidence (CRITICAL adversarial scenario) — an image
+// showing the wrong equipment entirely (e.g. an AC unit photo uploaded
+// against an RO job's required evidence) must never verify, in EITHER AI
+// mode. Same architecture, same result, regardless of which service: this
+// is what makes it a shared-pipeline fix and not an RO-only patch.
+// ---------------------------------------------------------------------------
+
+testCase({
+  name: "CRITICAL: AI detects wrong equipment (an AC unit photographed for an RO job's serial_photo) -> quality_issue 'wrong_subject', routes through IMAGE_UNCLEAR, never VERIFIED",
+  checklist: RO_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'RO-2048' },
+  claim: { data: { machine_id: 'RO-2048', tds_output: 85, filter_replaced: true } },
+  evidence: [
+    // extract.js's buildPhotoSystemPrompt (given taskType) instructs the
+    // vision model to set exactly this when the photographed equipment
+    // doesn't match the job's service — this fixture is what that real
+    // response looks like once parsed.
+    { role: 'serial_photo', quality: { readable: false, issue: 'wrong_subject', note: 'Vision model flagged this photo as unusable: wrong subject.' }, extractionSource: 'claude' },
+    { role: 'filter_photo', extractionSource: 'claude' },
+  ],
+  expect: {
+    decision: 'IMAGE_UNCLEAR',
+    fieldStatuses: { serial_photo: 'unclear' },
+    score: 60, // reduced, never 100 — see SCORE RULE
+  },
+});
+
+testCase({
+  name: 'CRITICAL, same scenario, AC job + wrong-subject image -> identical handling, not an RO-only code path',
+  checklist: AC_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'AC-1024' },
+  claim: { data: { machine_id: 'AC-1024', pressure: 4.2, temperature: 80 } },
+  evidence: [
+    { role: 'serial_photo', quality: { readable: false, issue: 'wrong_subject' }, extractionSource: 'claude' },
+    { role: 'final_photo', extractionSource: 'claude' },
+  ],
+  expect: { decision: 'IMAGE_UNCLEAR', fieldStatuses: { serial_photo: 'unclear' } },
+});
+
+testCase({
+  name: 'CRITICAL, no AI at all: EVERY required photo is content_unverified regardless of what it shows -> INSUFFICIENT_IMAGE_EVIDENCE, never VERIFIED, never 100/100 (this is the exact reported false-positive scenario)',
+  checklist: RO_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'RO-2048' },
+  claim: { data: { machine_id: 'RO-2048', tds_output: 85, filter_replaced: true } },
+  evidence: [{ role: 'serial_photo' }, { role: 'filter_photo' }], // no extractionSource at all — the real no-AI shape
+  expect: {
+    decision: 'INSUFFICIENT_IMAGE_EVIDENCE',
+    fieldStatuses: { serial_photo: 'content_unverified', filter_photo: 'content_unverified' },
+  },
+});
+
+testCase({
+  name: 'SCORE RULE: a task can never reach evidence_score 100 while any required photo is content_unverified — 3/5 required fields match (60%) minus a 20-point penalty per unverified photo (2x) = 20, nowhere near 100',
+  checklist: AC_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'AC-1024' },
+  claim: { data: { machine_id: 'AC-1024', pressure: 4.2, temperature: 80 } },
+  evidence: [{ role: 'serial_photo' }, { role: 'final_photo' }], // no-AI shape, no extractionSource
+  expect: {
+    decision: 'INSUFFICIENT_IMAGE_EVIDENCE',
+    score: 20,
+  },
+});
+
+testCase({
+  name: 'Positive control: everything actually AI-verified and matching -> genuinely VERIFIED, 100/100 (proves the gate is not just permanently blocking every task)',
+  checklist: RO_SERVICE_CHECKLIST,
+  taskContext: { unit_id: 'RO-2048' },
+  claim: { data: { machine_id: 'RO-2048', tds_output: 85, filter_replaced: true } },
+  evidence: [
+    { role: 'serial_photo', quality: { readable: true, issue: null }, extractionSource: 'claude' },
+    { role: 'filter_photo', quality: { readable: true, issue: null }, extractionSource: 'claude' },
+  ],
+  expect: { decision: 'VERIFIED', score: 100 },
 });
 
 // ---------------------------------------------------------------------------

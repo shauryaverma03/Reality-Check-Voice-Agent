@@ -62,7 +62,7 @@ router.post('/', upload.single('file'), async (req, res) => {
   // marks a field unclear; a document simply has no opinion either way).
   const checklist = getChecklistForTaskType(task.task_type);
   const { data, source, quality } = req.file.mimetype.startsWith('image/')
-    ? await extractEvidenceFromPhoto({ buffer, mimeType: req.file.mimetype, role, checklist })
+    ? await extractEvidenceFromPhoto({ buffer, mimeType: req.file.mimetype, role, checklist, taskType: task.task_type })
     : { data: {}, source: 'none', quality: null };
 
   const id = randomUUID();

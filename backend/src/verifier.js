@@ -19,14 +19,26 @@
 //
 // Output:
 //   {
-//     decision: 'VERIFIED' | 'NEED_MORE_EVIDENCE' | 'IMAGE_UNCLEAR' | 'CONFLICT_HUMAN_REVIEW',
+//     decision: 'VERIFIED' | 'NEED_MORE_EVIDENCE' | 'IMAGE_UNCLEAR'
+//             | 'INSUFFICIENT_IMAGE_EVIDENCE' | 'CONFLICT_HUMAN_REVIEW',
 //     evidence_score: 0-100,
 //     follow_up_question: string | null,
 //     fields: [ { key, type, status, sources, message }, ... ]
 //   }
 //
 // field.status is one of:
-//   'ok' | 'borderline' | 'missing' | 'contradiction' | 'out_of_range' | 'unclear'
+//   'ok' | 'borderline' | 'missing' | 'contradiction' | 'out_of_range'
+//   | 'unclear' | 'content_unverified'
+//
+// 'content_unverified' is distinct from 'unclear': the upload is
+// structurally fine (right size, legible dimensions) but no real vision
+// call ever judged what it actually shows — an uploaded file existing is
+// NOT proof of its content, so this can never count as 'ok' toward
+// VERIFIED, no matter how plausible the file looks. Without AI, EVERY
+// required photo field ends up here (never silently accepted as
+// evidence) — the app still runs end-to-end without AI, it just cannot
+// reach VERIFIED for a checklist with required photo evidence, which is
+// the honest, correct answer to "was this evidence actually checked?".
 //
 // 'unclear' is specific to 'photo'/'document' fields: evidence WAS uploaded
 // for that role, but extraction (extraction/extract.js, backed by
@@ -65,6 +77,7 @@ const SCORE_PENALTY = {
   borderline: 5,
   insufficient_evidence: 20,
   unclear: 20,
+  content_unverified: 20,
 };
 
 /**
@@ -177,18 +190,39 @@ function evaluateEvidencePresenceField(field, evidence) {
     };
   }
 
-  // Structurally fine, but if there was no AI call to actually judge
-  // content (readable defaults true only because nothing flagged it false —
-  // see extraction/extract.js), be honest that presence + structural
-  // plausibility is not the same as a semantic content check.
+  // Structural quality alone (file size, dimensions) is NOT the same as
+  // knowing what the photo actually shows. For 'photo' fields specifically
+  // (a 'document' — job card, invoice — has no equipment subject to verify,
+  // so presence + structural quality is genuinely all that applies there),
+  // a real vision call has to have actually run and judged the content
+  // before the field counts as fully satisfied. Without one, the field is
+  // 'content_unverified': not blocked as unusable (unlike 'unclear' — the
+  // upload IS structurally fine), but explicitly NOT counted as verified
+  // evidence either, and NOT contributing to VERIFIED/100 — an uploaded
+  // file existing is not proof of what it shows. This is the fix for a
+  // real reported bug: an AC photo uploaded against an RO job's required
+  // evidence previously still scored 'ok' and produced VERIFIED 100/100,
+  // because "readable" and "content actually checked" were being treated
+  // as the same thing. They are not.
   const contentVerified = current.extractionSource === 'claude';
+  if (field.type === 'photo' && !contentVerified) {
+    return {
+      key: field.key,
+      type: field.type,
+      status: 'content_unverified',
+      sources: [],
+      contentVerified: false,
+      message: `${field.label}: a file was uploaded and looks structurally plausible, but its content was not semantically verified (no AI vision call available) — this is NOT the same as confirming it actually shows the right equipment/reading. Upload again once AI verification is available, or have a supervisor confirm it manually.`,
+    };
+  }
+
   return {
     key: field.key,
     type: field.type,
     status: 'ok',
     sources: [{ origin: field.key, value: true }],
     contentVerified,
-    message: contentVerified ? null : 'Uploaded and structurally plausible — content not semantically verified (no AI available for this check).',
+    message: null,
   };
 }
 
@@ -362,19 +396,28 @@ export function verifyTask({ checklist, claim = null, evidence = [], taskContext
 
   const badFields = fields.filter((f) => f.status === 'contradiction' || f.status === 'out_of_range');
   const unclearFields = fields.filter((f) => f.status === 'unclear');
+  const contentUnverifiedFields = fields.filter((f) => f.status === 'content_unverified');
   const missingFields = fields.filter((f) => f.status === 'missing');
 
   let decision;
   let followUpQuestion = null;
 
   // Priority: a confirmed problem (contradiction/out-of-range) outranks an
-  // unclear image (we don't know), which outranks something simply not
-  // submitted yet, which outranks a clean pass.
+  // unclear image (we don't know if it's even usable), which outranks a
+  // structurally-fine image nobody has actually verified the CONTENT of
+  // (usable, but unconfirmed — a real, distinct problem: presence is not
+  // proof of what it shows), which outranks something simply not
+  // submitted yet, which outranks a clean pass. VERIFIED can never be
+  // reached while any required photo's content is unverified — an
+  // uploaded file existing was never sufficient evidence on its own.
   if (badFields.length > 0) {
     decision = 'CONFLICT_HUMAN_REVIEW';
   } else if (unclearFields.length > 0) {
     decision = 'IMAGE_UNCLEAR';
     followUpQuestion = unclearFields[0].message;
+  } else if (contentUnverifiedFields.length > 0) {
+    decision = 'INSUFFICIENT_IMAGE_EVIDENCE';
+    followUpQuestion = contentUnverifiedFields[0].message;
   } else if (missingFields.length > 0) {
     decision = 'NEED_MORE_EVIDENCE';
     // Ask about the first missing field, in checklist order.
@@ -441,18 +484,22 @@ export function verifyTaskWithReferences({ checklist, claim = null, evidence = [
 
   const badFields = fields.filter((f) => f.status === 'contradiction' || f.status === 'out_of_range');
   const unclearFields = fields.filter((f) => f.status === 'unclear');
+  const contentUnverifiedFields = fields.filter((f) => f.status === 'content_unverified');
   const insufficientFields = fields.filter((f) => f.status === 'insufficient_evidence');
   const missingFields = fields.filter((f) => f.status === 'missing');
 
   let decision;
   let followUpQuestion = base.follow_up_question;
 
-  // Priority: CONFLICT > IMAGE_UNCLEAR > INSUFFICIENT_EVIDENCE > NEED_MORE_EVIDENCE > VERIFIED
+  // Priority: CONFLICT > IMAGE_UNCLEAR > INSUFFICIENT_IMAGE_EVIDENCE > INSUFFICIENT_EVIDENCE > NEED_MORE_EVIDENCE > VERIFIED
   if (badFields.length > 0) {
     decision = 'CONFLICT_HUMAN_REVIEW';
   } else if (unclearFields.length > 0) {
     decision = 'IMAGE_UNCLEAR';
     followUpQuestion = unclearFields[0].message;
+  } else if (contentUnverifiedFields.length > 0) {
+    decision = 'INSUFFICIENT_IMAGE_EVIDENCE';
+    followUpQuestion = contentUnverifiedFields[0].message;
   } else if (insufficientFields.length > 0) {
     decision = 'INSUFFICIENT_EVIDENCE';
     followUpQuestion = insufficientFields[0].message;

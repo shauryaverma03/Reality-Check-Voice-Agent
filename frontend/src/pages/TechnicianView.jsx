@@ -12,6 +12,7 @@ const DECISION_ICON = {
   VERIFIED: '✓',
   NEED_MORE_EVIDENCE: '⚠',
   IMAGE_UNCLEAR: '🖼',
+  INSUFFICIENT_IMAGE_EVIDENCE: '🖼',
   CONFLICT_HUMAN_REVIEW: '⚠',
   INSUFFICIENT_EVIDENCE: '?',
 };
@@ -47,6 +48,7 @@ const DECISION_TO_STATUS = {
   VERIFIED: 'verified',
   NEED_MORE_EVIDENCE: 'need_more_evidence',
   IMAGE_UNCLEAR: 'image_unclear',
+  INSUFFICIENT_IMAGE_EVIDENCE: 'insufficient_image_evidence',
   CONFLICT_HUMAN_REVIEW: 'conflict',
   INSUFFICIENT_EVIDENCE: 'insufficient_evidence',
 };
@@ -286,6 +288,8 @@ export default function TechnicianView() {
         pushMessage('system', `❓ ${result.follow_up_question}`);
       } else if (result.decision === 'IMAGE_UNCLEAR') {
         pushMessage('system', `🖼 IMAGE UNCLEAR — ${result.follow_up_question}`);
+      } else if (result.decision === 'INSUFFICIENT_IMAGE_EVIDENCE') {
+        pushMessage('system', `🖼 IMAGE NOT VERIFIED — ${result.follow_up_question}`);
       } else if (result.decision === 'INSUFFICIENT_EVIDENCE') {
         pushMessage('system', `📖 INSUFFICIENT EVIDENCE — ${result.follow_up_question}`);
       } else {
@@ -563,7 +567,7 @@ export default function TechnicianView() {
                     }}
                   />
                 )}
-                {verification.decision === 'IMAGE_UNCLEAR' && verification.follow_up_question && (
+                {(verification.decision === 'IMAGE_UNCLEAR' || verification.decision === 'INSUFFICIENT_IMAGE_EVIDENCE') && verification.follow_up_question && (
                   <FollowUpCallout
                     question={verification.follow_up_question}
                     fields={verification.fields}
@@ -573,7 +577,7 @@ export default function TechnicianView() {
                     }}
                   />
                 )}
-                {verification.decision !== 'NEED_MORE_EVIDENCE' && verification.decision !== 'IMAGE_UNCLEAR' && verification.follow_up_question && (
+                {verification.decision !== 'NEED_MORE_EVIDENCE' && verification.decision !== 'IMAGE_UNCLEAR' && verification.decision !== 'INSUFFICIENT_IMAGE_EVIDENCE' && verification.follow_up_question && (
                   <p className="follow-up">
                     {verification.decision === 'INSUFFICIENT_EVIDENCE' ? 'Why: ' : 'Note: '}
                     {verification.follow_up_question}

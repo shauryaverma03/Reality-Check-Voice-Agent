@@ -8,6 +8,7 @@ const STATUS_LABELS = {
   out_of_range: 'Out of range',
   insufficient_evidence: 'Insufficient evidence',
   unclear: 'Image unclear',
+  content_unverified: 'Content not verified',
 };
 
 // A source's `origin` is a stable internal token (see verifier.js) — shown

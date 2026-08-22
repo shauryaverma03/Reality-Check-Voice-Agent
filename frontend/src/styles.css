@@ -640,6 +640,7 @@ select {
 .status-verified { background: var(--success-soft); color: var(--ok); }
 .status-need_more_evidence { background: var(--warning-soft); color: var(--warn); }
 .status-image_unclear { background: var(--warning-soft); color: var(--warn); }
+.status-insufficient_image_evidence { background: var(--info-soft); color: var(--insufficient); }
 .status-conflict { background: var(--danger-soft); color: var(--conflict); }
 .status-insufficient_evidence { background: var(--info-soft); color: var(--insufficient); }
 
@@ -661,6 +662,7 @@ select {
 .status-card-VERIFIED { border-left-color: var(--success); }
 .status-card-NEED_MORE_EVIDENCE { border-left-color: var(--warning); }
 .status-card-IMAGE_UNCLEAR { border-left-color: var(--warning); }
+.status-card-INSUFFICIENT_IMAGE_EVIDENCE { border-left-color: var(--info); }
 .status-card-CONFLICT_HUMAN_REVIEW { border-left-color: var(--danger); }
 .status-card-INSUFFICIENT_EVIDENCE { border-left-color: var(--info); }
 
@@ -682,6 +684,7 @@ select {
 .result-icon-VERIFIED { background: var(--success-soft); color: var(--ok); }
 .result-icon-NEED_MORE_EVIDENCE { background: var(--warning-soft); color: var(--warn); }
 .result-icon-IMAGE_UNCLEAR { background: var(--warning-soft); color: var(--warn); }
+.result-icon-INSUFFICIENT_IMAGE_EVIDENCE { background: var(--info-soft); color: var(--insufficient); }
 .result-icon-CONFLICT_HUMAN_REVIEW { background: var(--danger-soft); color: var(--conflict); }
 .result-icon-INSUFFICIENT_EVIDENCE { background: var(--info-soft); color: var(--insufficient); }
 .result-label { font-size: 1.15rem; font-weight: 800; letter-spacing: 0.01em; }
@@ -747,6 +750,7 @@ select {
 .field-status-contradiction, .field-status-out_of_range { background: var(--danger-soft); color: var(--conflict); }
 .field-status-insufficient_evidence { background: var(--info-soft); color: var(--insufficient); }
 .field-status-unclear { background: var(--warning-soft); color: var(--warn); }
+.field-status-content_unverified { background: var(--info-soft); color: var(--insufficient); }
 .field-status-mismatch { background: var(--danger-soft); color: var(--conflict); }
 
 .source-chip { font-size: 0.82rem; color: var(--text); }
@@ -1129,6 +1133,7 @@ select {
 .decision-verified { border-left-color: var(--ok); }
 .decision-need_more_evidence { border-left-color: var(--warn); }
 .decision-image_unclear { border-left-color: var(--warn); }
+.decision-insufficient_image_evidence { border-left-color: var(--insufficient); }
 .decision-conflict { border-left-color: var(--conflict); }
 .decision-insufficient_evidence { border-left-color: var(--insufficient); }
 
